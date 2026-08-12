@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -35,6 +36,7 @@ public class ContractController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','CONTRACT_MANAGER')")
     public ResponseEntity<ContractResponse> createContract(@Valid @RequestBody CreateContractRequest request) {
         ContractResponse body = ContractResponse.from(
                 contractApplicationService.createContract(
@@ -47,11 +49,13 @@ public class ContractController {
     }
 
     @GetMapping("/{contractId}")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','CONTRACT_MANAGER','TENANT_ADMIN','AUDITOR')")
     public ResponseEntity<ContractResponse> getContract(@PathVariable UUID contractId) {
         return ResponseEntity.ok(ContractResponse.from(contractApplicationService.requireContract(contractId)));
     }
 
     @PostMapping("/{contractId}/versions")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','CONTRACT_MANAGER')")
     public ResponseEntity<ContractVersionResponse> createDraftVersion(
             @PathVariable UUID contractId,
             @Valid @RequestBody CreateContractVersionRequest request
@@ -67,6 +71,7 @@ public class ContractController {
     }
 
     @PostMapping("/{contractId}/versions/from-plan")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','CONTRACT_MANAGER')")
     public ResponseEntity<ContractVersionResponse> createDraftFromPlan(
             @PathVariable UUID contractId,
             @Valid @RequestBody CreateContractVersionFromPlanRequest request
@@ -83,6 +88,7 @@ public class ContractController {
     }
 
     @GetMapping("/{contractId}/versions/{versionNumber}")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','CONTRACT_MANAGER','TENANT_ADMIN','AUDITOR')")
     public ResponseEntity<ContractVersionResponse> getVersion(
             @PathVariable UUID contractId,
             @PathVariable int versionNumber
@@ -95,6 +101,7 @@ public class ContractController {
     }
 
     @PutMapping("/{contractId}/versions/{versionNumber}/entitlements/{featureId}")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','CONTRACT_MANAGER')")
     public ResponseEntity<ContractVersionResponse> upsertEntitlement(
             @PathVariable UUID contractId,
             @PathVariable int versionNumber,
@@ -115,6 +122,7 @@ public class ContractController {
     }
 
     @PostMapping("/{contractId}/versions/{versionNumber}/activate")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','CONTRACT_MANAGER')")
     public ResponseEntity<ContractVersionResponse> activateVersion(
             @PathVariable UUID contractId,
             @PathVariable int versionNumber
@@ -127,6 +135,7 @@ public class ContractController {
     }
 
     @GetMapping("/{contractId}/effective-version")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','CONTRACT_MANAGER','TENANT_ADMIN','AUDITOR')")
     public ResponseEntity<ContractVersionResponse> resolveEffectiveVersion(
             @PathVariable UUID contractId,
             @RequestParam("at") Instant at

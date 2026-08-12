@@ -2,9 +2,14 @@ package io.usagecore.controlplane.adapters.inbound.http;
 
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
+import io.restassured.specification.RequestSpecification;
+import io.usagecore.controlplane.support.TestJwtSupport;
+import io.usagecore.controlplane.support.TestSecurityConfiguration;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -12,8 +17,10 @@ import org.testcontainers.containers.PostgreSQLContainer;
 /**
  * Shared PostgreSQL container for REST Assured API tests.
  * Started once for the JVM so Spring context caching stays aligned with JDBC URL.
+ * Uses signed test JWTs (no live Keycloak).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Import(TestSecurityConfiguration.class)
 abstract class AbstractApiIntegrationTest {
 
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
@@ -33,6 +40,7 @@ abstract class AbstractApiIntegrationTest {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
+        registry.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri", () -> "http://localhost/unused");
     }
 
     @BeforeEach
@@ -42,9 +50,36 @@ abstract class AbstractApiIntegrationTest {
         RestAssured.enableLoggingOfRequestAndResponseIfValidationFails();
     }
 
-    protected io.restassured.specification.RequestSpecification givenJson() {
+    protected RequestSpecification givenJson() {
+        return givenBearer(TestJwtSupport.platformAdmin());
+    }
+
+    protected RequestSpecification givenBearer(String token) {
+        return RestAssured.given()
+                .contentType(ContentType.JSON)
+                .accept(ContentType.JSON)
+                .header("Authorization", "Bearer " + token);
+    }
+
+    protected RequestSpecification givenUnauthenticatedJson() {
         return RestAssured.given()
                 .contentType(ContentType.JSON)
                 .accept(ContentType.JSON);
+    }
+
+    protected String platformAdminToken() {
+        return TestJwtSupport.platformAdmin();
+    }
+
+    protected String contractManagerToken(UUID tenantId) {
+        return TestJwtSupport.contractManager(tenantId);
+    }
+
+    protected String tenantAdminToken(UUID tenantId) {
+        return TestJwtSupport.tenantAdmin(tenantId);
+    }
+
+    protected String developerToken(UUID tenantId) {
+        return TestJwtSupport.developer(tenantId);
     }
 }

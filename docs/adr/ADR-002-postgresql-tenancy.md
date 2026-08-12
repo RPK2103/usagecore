@@ -14,6 +14,7 @@ UsageCore is multi-tenant. Isolation must be mandatory without premature operati
 - Every tenant-owned row includes `tenant_id`; all queries and writes are tenant-scoped in application code.
 - Internal IDs are UUIDs; tenants also have a stable business key.
 - PostgreSQL Row Level Security (RLS) will be evaluated in the security phase as defense in depth — not implemented in Phase 0/1 foundation.
+- **Phase 2A decision:** RLS is intentionally deferred for v1. See [ADR-006](ADR-006-postgresql-rls.md). Compensating controls are application-level tenant scoping, JWT tenant claims, and security audit evidence.
 
 ## Consequences
 

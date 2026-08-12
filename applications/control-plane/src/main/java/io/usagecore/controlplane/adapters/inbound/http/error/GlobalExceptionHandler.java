@@ -2,6 +2,7 @@ package io.usagecore.controlplane.adapters.inbound.http.error;
 
 import io.usagecore.controlplane.application.catalogue.DuplicateResourceException;
 import io.usagecore.controlplane.application.catalogue.ResourceNotFoundException;
+import io.usagecore.controlplane.application.security.AuthorizationDeniedException;
 import io.usagecore.controlplane.domain.catalogue.DomainInvariantException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
@@ -9,6 +10,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -53,6 +56,19 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         return build(HttpStatus.NOT_FOUND, ApiErrorCodes.RESOURCE_NOT_FOUND, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler({AuthorizationDeniedException.class, AccessDeniedException.class})
+    public ResponseEntity<ApiError> handleForbidden(RuntimeException exception, HttpServletRequest request) {
+        return build(HttpStatus.FORBIDDEN, ApiErrorCodes.FORBIDDEN, "Access denied", request);
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ApiError> handleUnauthorized(
+            AuthenticationException exception,
+            HttpServletRequest request
+    ) {
+        return build(HttpStatus.UNAUTHORIZED, ApiErrorCodes.UNAUTHORIZED, "Authentication required", request);
     }
 
     @ExceptionHandler(DuplicateResourceException.class)

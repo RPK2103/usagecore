@@ -13,6 +13,8 @@ Java backend portfolio project. No frontend in this repository.
 | Build | Maven |
 | Transactional store | PostgreSQL |
 | Architecture | Pragmatic hexagonal / clean |
+| Auth (local) | Keycloak (OIDC) — **development only** |
+| Auth (production target) | Cognito later (not configured in this phase) |
 
 ## Workloads
 
@@ -22,15 +24,14 @@ Long-term modules (build only what the current milestone needs):
 2. **entitlement-runtime** — evaluate entitlements against activated contract state
 3. **usage-pipeline** — ingest, aggregate, reconcile usage (Kafka only after entitlement runtime foundation)
 
-## Phase 1 status
+## Phase 2A status
 
-Phase 1 control-plane is complete for local development:
+Control Plane APIs under `/api/v1` require a validated JWT (OAuth2 resource server).
 
-- Domain + PostgreSQL persistence for catalogue and contracts
-- Use-case application services
-- REST API under `/api/v1` (no authentication yet)
-
-**These endpoints are not protected.** Phase 2 introduces entitlement runtime; authentication/authorization is deferred. Do not treat Phase 1 as production-ready.
+- **Tenant authority** comes from the validated JWT `tenant_id` claim (plus roles).
+- Do **not** treat `X-Tenant-ID`, URL/query parameters, or request-body `tenantId` as authorization evidence. A body may include `tenantId` where administratively required; the server compares it to the authenticated context.
+- Keycloak is the **local/demo** identity provider. Production target is Cognito later.
+- PostgreSQL RLS is intentionally deferred for v1 ([ADR-006](docs/adr/ADR-006-postgresql-rls.md)).
 
 See:
 
@@ -43,10 +44,10 @@ See:
 ## Prerequisites
 
 - Java 21 JDK
-- Docker (for local PostgreSQL and Testcontainers)
+- Docker (for local PostgreSQL, Keycloak, and Testcontainers)
 - Maven Wrapper (included; no system Maven required)
 
-## Local PostgreSQL
+## Local PostgreSQL + Keycloak
 
 Credentials in Compose are **local development only**, not for production.
 
@@ -54,13 +55,47 @@ Credentials in Compose are **local development only**, not for production.
 docker compose -f infrastructure/docker/docker-compose.yml up -d
 ```
 
-Defaults (override via environment when running the app):
+| Service | URL / port |
+| --- | --- |
+| PostgreSQL | `localhost:5432` |
+| Keycloak | `http://localhost:8081` (admin / admin) |
+| Realm | `usagecore` |
+
+Defaults when running the app:
 
 | Variable | Default |
 | --- | --- |
 | `USAGECORE_DB_URL` | `jdbc:postgresql://localhost:5432/usagecore` |
 | `USAGECORE_DB_USERNAME` | `usagecore` |
 | `USAGECORE_DB_PASSWORD` | `usagecore` |
+| `USAGECORE_JWK_SET_URI` | `http://localhost:8081/realms/usagecore/protocol/openid-connect/certs` |
+
+### Demo users (local/demo-only)
+
+Passwords match usernames unless noted. Tenant-bound users ship with **placeholder** `tenant_id` attributes:
+
+| User | Role | `tenant_id` claim |
+| --- | --- | --- |
+| `platform-admin` | PLATFORM_ADMIN | (none) |
+| `acme-contract-manager` | CONTRACT_MANAGER | `11111111-1111-1111-1111-111111111111` |
+| `globex-contract-manager` | CONTRACT_MANAGER | `22222222-2222-2222-2222-222222222222` |
+| `acme-tenant-admin` | TENANT_ADMIN | Acme placeholder |
+| `acme-auditor` | AUDITOR | Acme placeholder |
+| `acme-developer` | DEVELOPER | Acme placeholder |
+| `globex-billing` | BILLING_OPERATOR | Globex placeholder |
+
+After creating real Tenant rows, update Keycloak user attributes so `tenant_id` matches the database UUID (or create tenants with those fixed UUIDs via admin tooling). Automated tests mint JWTs and do not require a live Keycloak.
+
+Obtain a token (password grant, local only):
+
+```bash
+curl -s -X POST "http://localhost:8081/realms/usagecore/protocol/openid-connect/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "client_id=usagecore-control-plane" \
+  -d "username=platform-admin" \
+  -d "password=platform-admin" \
+  -d "grant_type=password"
+```
 
 ## Run the control-plane application
 
@@ -72,52 +107,26 @@ Defaults (override via environment when running the app):
 ./mvnw -pl applications/control-plane spring-boot:run
 ```
 
-Health: `http://localhost:8080/actuator/health`
+Health (unauthenticated): `http://localhost:8080/actuator/health`
 
-## Phase 1 local demo (curl)
+## Authenticated local demo (curl)
 
 Base URL: `http://localhost:8080/api/v1`
 
+Set `TOKEN` from the Keycloak token response `access_token`, then:
+
 ```bash
-# 1. Tenant
+# 1. Tenant (PLATFORM_ADMIN)
 curl -s -X POST http://localhost:8080/api/v1/tenants \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"tenantKey":"acme","displayName":"Acme Corp"}'
 
 # 2. Product
 curl -s -X POST http://localhost:8080/api/v1/products \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"productKey":"datapilot","name":"DataPilot"}'
-
-# 3. Feature (replace PRODUCT_ID)
-curl -s -X POST http://localhost:8080/api/v1/products/PRODUCT_ID/features \
-  -H "Content-Type: application/json" \
-  -d '{"featureKey":"scheduled_exports","name":"Scheduled Exports"}'
-
-# 4. Plan + LIMITED feature + publish
-curl -s -X POST http://localhost:8080/api/v1/products/PRODUCT_ID/plans \
-  -H "Content-Type: application/json" \
-  -d '{"planKey":"enterprise","name":"Enterprise"}'
-
-curl -s -X PUT http://localhost:8080/api/v1/products/PRODUCT_ID/plans/PLAN_ID/features/FEATURE_ID \
-  -H "Content-Type: application/json" \
-  -d '{"mode":"LIMITED","maxQuantity":1000000}'
-
-curl -s -X POST http://localhost:8080/api/v1/products/PRODUCT_ID/plans/PLAN_ID/publish
-
-# 5. Contract + version from plan + activate
-curl -s -X POST http://localhost:8080/api/v1/contracts \
-  -H "Content-Type: application/json" \
-  -d '{"tenantId":"TENANT_ID","productId":"PRODUCT_ID","contractKey":"acme-datapilot"}'
-
-curl -s -X POST http://localhost:8080/api/v1/contracts/CONTRACT_ID/versions/from-plan \
-  -H "Content-Type: application/json" \
-  -d '{"planId":"PLAN_ID","effectiveFrom":"2026-01-01T00:00:00Z","effectiveUntil":"2026-06-01T00:00:00Z"}'
-
-curl -s -X POST http://localhost:8080/api/v1/contracts/CONTRACT_ID/versions/1/activate
-
-# 6. Temporal resolution
-curl -s "http://localhost:8080/api/v1/contracts/CONTRACT_ID/effective-version?at=2026-05-31T23:59:59Z"
 ```
 
 Optional correlation header (not authentication): `X-Correlation-Id`.
@@ -134,11 +143,15 @@ Optional correlation header (not authentication): `X-Correlation-Id`.
 
 Requires Docker available for Testcontainers PostgreSQL tests.
 
+```bash
+docker compose -f infrastructure/docker/docker-compose.yml config
+```
+
 ## Non-goals (current)
 
-- Authentication / authorization (deferred)
-- Kafka / event streaming (deferred)
-- Kubernetes, AWS, Terraform
+- Entitlement-runtime application / check endpoint
+- Kafka / event streaming
+- Cognito / AWS / Kubernetes
 - Redis, MongoDB, Elasticsearch, GraphQL, service mesh
 - AI / LLM components
 - Frontend UI

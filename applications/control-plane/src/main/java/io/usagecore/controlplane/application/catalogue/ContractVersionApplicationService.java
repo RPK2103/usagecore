@@ -17,18 +17,18 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ContractVersionApplicationService {
 
-    private final ContractRepository contractRepository;
+    private final ContractApplicationService contractApplicationService;
     private final ContractVersionRepository contractVersionRepository;
     private final PlanRepository planRepository;
     private final FeatureRepository featureRepository;
 
     public ContractVersionApplicationService(
-            ContractRepository contractRepository,
+            ContractApplicationService contractApplicationService,
             ContractVersionRepository contractVersionRepository,
             PlanRepository planRepository,
             FeatureRepository featureRepository
     ) {
-        this.contractRepository = contractRepository;
+        this.contractApplicationService = contractApplicationService;
         this.contractVersionRepository = contractVersionRepository;
         this.planRepository = planRepository;
         this.featureRepository = featureRepository;
@@ -40,7 +40,7 @@ public class ContractVersionApplicationService {
             Instant effectiveFrom,
             Instant effectiveUntil
     ) {
-        Contract contract = requireContract(contractId);
+        Contract contract = contractApplicationService.requireContractForMutation(contractId, "CREATE_CONTRACT_VERSION");
         ContractVersion version = ContractVersion.createDraft(
                 contract,
                 allocateNextVersionNumber(contract.id()),
@@ -57,7 +57,7 @@ public class ContractVersionApplicationService {
             Instant effectiveFrom,
             Instant effectiveUntil
     ) {
-        Contract contract = requireContract(contractId);
+        Contract contract = contractApplicationService.requireContractForMutation(contractId, "CREATE_CONTRACT_VERSION_FROM_PLAN");
         Plan plan = planRepository.findById(planId)
                 .orElseThrow(() -> new ResourceNotFoundException("Plan not found: " + planId));
         ContractVersion version = ContractVersion.createDraftFromPlan(
@@ -78,7 +78,7 @@ public class ContractVersionApplicationService {
             EntitlementMode mode,
             LimitConfiguration limit
     ) {
-        ContractVersion version = requireVersion(contractId, versionNumber);
+        ContractVersion version = requireVersionForMutation(contractId, versionNumber, "UPSERT_CONTRACT_ENTITLEMENT");
         Feature feature = featureRepository.findById(featureId)
                 .orElseThrow(() -> new ResourceNotFoundException("Feature not found: " + featureId));
         boolean present = version.entitlements().stream()
@@ -93,7 +93,7 @@ public class ContractVersionApplicationService {
 
     @Transactional
     public ContractVersion activateVersion(UUID contractId, int versionNumber) {
-        ContractVersion version = requireVersion(contractId, versionNumber);
+        ContractVersion version = requireVersionForMutation(contractId, versionNumber, "ACTIVATE_CONTRACT_VERSION");
         List<ContractVersion> activated = contractVersionRepository.findActivatedByContractId(version.contractId());
         version.activate(Instant.now(), activated);
         return contractVersionRepository.save(version);
@@ -101,7 +101,7 @@ public class ContractVersionApplicationService {
 
     @Transactional(readOnly = true)
     public ContractVersion requireVersion(UUID contractId, int versionNumber) {
-        requireContract(contractId);
+        contractApplicationService.requireContract(contractId);
         return contractVersionRepository.findByContractIdAndVersionNumber(contractId, versionNumber)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Contract version not found: contractId="
@@ -114,8 +114,19 @@ public class ContractVersionApplicationService {
     @Transactional(readOnly = true)
     public Optional<ContractVersion> resolveEffectiveVersion(UUID contractId, Instant instant) {
         Objects.requireNonNull(instant, "instant");
-        requireContract(contractId);
+        contractApplicationService.requireContract(contractId);
         return contractVersionRepository.findEffectiveAt(contractId, instant);
+    }
+
+    private ContractVersion requireVersionForMutation(UUID contractId, int versionNumber, String action) {
+        contractApplicationService.requireContractForMutation(contractId, action);
+        return contractVersionRepository.findByContractIdAndVersionNumber(contractId, versionNumber)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Contract version not found: contractId="
+                                + contractId
+                                + ", versionNumber="
+                                + versionNumber
+                ));
     }
 
     /**
@@ -124,10 +135,5 @@ public class ContractVersionApplicationService {
      */
     private int allocateNextVersionNumber(UUID contractId) {
         return contractVersionRepository.findMaxVersionNumber(contractId) + 1;
-    }
-
-    private Contract requireContract(UUID contractId) {
-        return contractRepository.findById(contractId)
-                .orElseThrow(() -> new ResourceNotFoundException("Contract not found: " + contractId));
     }
 }

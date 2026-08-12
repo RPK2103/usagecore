@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,6 +26,7 @@ public class PlanController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<PlanResponse> createPlan(
             @PathVariable UUID productId,
             @Valid @RequestBody CreatePlanRequest request
@@ -40,6 +42,7 @@ public class PlanController {
     }
 
     @GetMapping("/{planId}")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','CONTRACT_MANAGER','TENANT_ADMIN','AUDITOR')")
     public ResponseEntity<PlanResponse> getPlan(
             @PathVariable UUID productId,
             @PathVariable UUID planId
@@ -50,6 +53,7 @@ public class PlanController {
     }
 
     @PutMapping("/{planId}/features/{featureId}")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<PlanResponse> configureFeature(
             @PathVariable UUID productId,
             @PathVariable UUID planId,
@@ -70,6 +74,7 @@ public class PlanController {
     }
 
     @PostMapping("/{planId}/publish")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<PlanResponse> publishPlan(
             @PathVariable UUID productId,
             @PathVariable UUID planId

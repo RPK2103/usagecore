@@ -2,11 +2,13 @@ package io.usagecore.controlplane;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.usagecore.controlplane.support.TestSecurityConfiguration;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -16,6 +18,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 @SpringBootTest
 @Testcontainers
+@Import(TestSecurityConfiguration.class)
 class ControlPlaneApplicationTests {
 
     @Container
@@ -29,6 +32,7 @@ class ControlPlaneApplicationTests {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri", () -> "http://localhost/unused");
     }
 
     @Autowired
@@ -45,7 +49,7 @@ class ControlPlaneApplicationTests {
                 "SELECT version, success FROM flyway_schema_history ORDER BY installed_rank"
         );
         assertThat(migrations).isNotEmpty();
-        assertThat(migrations).extracting(row -> row.get("version")).contains("1", "2", "3");
+        assertThat(migrations).extracting(row -> row.get("version")).contains("1", "2", "3", "4");
         assertThat(migrations).allMatch(row -> Boolean.TRUE.equals(row.get("success")));
     }
 }

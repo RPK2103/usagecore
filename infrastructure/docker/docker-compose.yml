@@ -17,5 +17,25 @@ services:
       timeout: 5s
       retries: 10
 
+  # Local/demo identity provider only. Production target is Cognito (not configured here).
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: usagecore-keycloak
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HTTP_PORT: 8081
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./keycloak/realm-usagecore.json:/opt/keycloak/data/import/realm-usagecore.json:ro
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8081"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
 volumes:
   usagecore_pgdata:

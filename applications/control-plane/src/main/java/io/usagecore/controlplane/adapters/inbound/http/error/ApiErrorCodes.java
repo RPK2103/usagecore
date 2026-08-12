@@ -11,6 +11,8 @@ public final class ApiErrorCodes {
     public static final String DUPLICATE_RESOURCE = "DUPLICATE_RESOURCE";
     public static final String INVALID_STATE_TRANSITION = "INVALID_STATE_TRANSITION";
     public static final String COMMERCIAL_INTERVAL_CONFLICT = "COMMERCIAL_INTERVAL_CONFLICT";
+    public static final String UNAUTHORIZED = "UNAUTHORIZED";
+    public static final String FORBIDDEN = "FORBIDDEN";
     public static final String INTERNAL_ERROR = "INTERNAL_ERROR";
 
     private ApiErrorCodes() {

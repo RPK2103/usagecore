@@ -54,6 +54,18 @@ class DomainArchitectureTest {
             .because("domain must remain independent of HTTP/web infrastructure");
 
     @ArchTest
+    static final ArchRule domainMustNotDependOnSecurityInfrastructure = noClasses()
+            .that()
+            .resideInAPackage("..domain..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAnyPackage(
+                    "org.springframework.security..",
+                    "org.keycloak.."
+            )
+            .because("domain must remain independent of Spring Security and Keycloak");
+
+    @ArchTest
     static final ArchRule controllersMustNotDependOnJpaRepositories = noClasses()
             .that()
             .resideInAPackage("..adapters.inbound.http..")

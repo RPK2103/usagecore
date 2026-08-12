@@ -49,6 +49,12 @@ class ContractPersistenceAdapter implements ContractRepository {
 
     @Override
     @Transactional(readOnly = true)
+    public Optional<Contract> findByIdAndTenantId(UUID id, UUID tenantId) {
+        return contractJpaRepository.findByIdAndTenantId(id, tenantId).map(CataloguePersistenceMapper::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<Contract> findByTenantIdAndProductId(UUID tenantId, UUID productId) {
         return contractJpaRepository.findByTenantIdAndProductId(tenantId, productId)
                 .map(CataloguePersistenceMapper::toDomain);

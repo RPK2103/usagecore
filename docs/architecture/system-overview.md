@@ -32,7 +32,7 @@ See [ADR-001](../adr/ADR-001-application-boundaries.md).
 
 ## Tenancy
 
-Shared PostgreSQL schema with tenant-aware isolation. Application code must scope all reads/writes by tenant. PostgreSQL RLS evaluation is deferred to the security phase ([ADR-002](../adr/ADR-002-postgresql-tenancy.md)).
+Shared PostgreSQL schema with tenant-aware isolation. Application code must scope all reads/writes by tenant. PostgreSQL RLS is deferred for v1 ([ADR-006](../adr/ADR-006-postgresql-rls.md); see also [ADR-002](../adr/ADR-002-postgresql-tenancy.md)).
 
 ## Commercial model (summary)
 

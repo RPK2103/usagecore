@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,6 +31,7 @@ public class ProductController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<ProductResponse> createProduct(@Valid @RequestBody CreateProductRequest request) {
         ProductResponse body = ProductResponse.from(
                 productApplicationService.createProduct(
@@ -41,11 +43,13 @@ public class ProductController {
     }
 
     @GetMapping("/{productId}")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','CONTRACT_MANAGER','TENANT_ADMIN','AUDITOR')")
     public ResponseEntity<ProductResponse> getProduct(@PathVariable UUID productId) {
         return ResponseEntity.ok(ProductResponse.from(productApplicationService.requireProduct(productId)));
     }
 
     @PostMapping("/{productId}/features")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<FeatureResponse> createFeature(
             @PathVariable UUID productId,
             @Valid @RequestBody CreateFeatureRequest request
@@ -61,6 +65,7 @@ public class ProductController {
     }
 
     @GetMapping("/{productId}/features/{featureId}")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','CONTRACT_MANAGER','TENANT_ADMIN','AUDITOR')")
     public ResponseEntity<FeatureResponse> getFeature(
             @PathVariable UUID productId,
             @PathVariable UUID featureId

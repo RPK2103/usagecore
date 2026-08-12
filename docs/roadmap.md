@@ -16,7 +16,13 @@ Milestones are sequential. Each builds only the workloads it needs.
 - Draft/activate contract version flows
 - Tenant-scoped APIs (no frontend)
 
-## Phase 2 — Entitlement runtime
+## Phase 2A — Control Plane security (current foundation)
+
+- Spring Security OAuth2 resource server (JWT) on `/api/v1`
+- Tenant context from validated `tenant_id` claim; RBAC roles
+- Security audit evidence; RLS deferred ([ADR-006](adr/ADR-006-postgresql-rls.md))
+
+## Phase 2B — Entitlement runtime
 
 - Evaluate entitlements from activated contract evidence
 - Read path optimized for check latency (still PostgreSQL SoT)
@@ -28,11 +34,10 @@ Milestones are sequential. Each builds only the workloads it needs.
 - Aggregation and reconciliation against entitlements
 - Idempotency / dedup strategies documented honestly (at-least-once)
 
-## Phase 4 — Security and tenancy hardening
+## Phase 4 — Tenancy hardening (optional RLS revisit)
 
-- AuthN/AuthZ model
-- Evaluate PostgreSQL RLS for defense in depth
-- Audit of activated commercial state access
+- Revisit PostgreSQL RLS with proven session handling ([ADR-006](adr/ADR-006-postgresql-rls.md))
+- Expand audit of commercial-state access as needed
 
 ## Phase 5 — Operability
 
@@ -41,4 +46,4 @@ Milestones are sequential. Each builds only the workloads it needs.
 
 ## Explicit deferrals
 
-Kafka before Phase 3 · K8s/AWS/Terraform until operability needs them · Redis/Mongo/ES/GraphQL/mesh without measured need · AI/LLM · Frontend
+Kafka before Phase 3 · K8s/AWS/Terraform until operability needs them · Redis/Mongo/ES/GraphQL/mesh without measured need · Cognito until production IdP cutover · AI/LLM · Frontend

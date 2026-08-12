@@ -22,6 +22,8 @@ import io.usagecore.controlplane.domain.catalogue.LimitConfiguration;
 import io.usagecore.controlplane.domain.catalogue.Plan;
 import io.usagecore.controlplane.domain.catalogue.Product;
 import io.usagecore.controlplane.domain.catalogue.Tenant;
+import io.usagecore.controlplane.support.TestSecurityConfiguration;
+import io.usagecore.controlplane.support.TestSecurityContext;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -37,9 +39,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -50,6 +55,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 @SpringBootTest
 @Testcontainers
+@Import(TestSecurityConfiguration.class)
 class ContractSchemaConstraintTest {
 
     private static final Instant JAN_1 = Instant.parse("2026-01-01T00:00:00Z");
@@ -66,6 +72,17 @@ class ContractSchemaConstraintTest {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri", () -> "http://localhost/unused");
+    }
+
+    @BeforeEach
+    void authenticateAsPlatformAdmin() {
+        TestSecurityContext.asPlatformAdmin();
+    }
+
+    @AfterEach
+    void clearSecurityContext() {
+        TestSecurityContext.clear();
     }
 
     @Autowired
@@ -100,7 +117,7 @@ class ContractSchemaConstraintTest {
         List<Map<String, Object>> migrations = jdbcTemplate.queryForList(
                 "SELECT version, success FROM flyway_schema_history ORDER BY installed_rank"
         );
-        assertThat(migrations).extracting(row -> row.get("version")).contains("1", "2", "3");
+        assertThat(migrations).extracting(row -> row.get("version")).contains("1", "2", "3", "4");
         assertThat(migrations).allMatch(row -> Boolean.TRUE.equals(row.get("success")));
 
         Integer contractTable = jdbcTemplate.queryForObject(

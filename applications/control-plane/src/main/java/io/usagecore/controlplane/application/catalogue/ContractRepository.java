@@ -10,6 +10,8 @@ public interface ContractRepository {
 
     Optional<Contract> findById(UUID id);
 
+    Optional<Contract> findByIdAndTenantId(UUID id, UUID tenantId);
+
     Optional<Contract> findByTenantIdAndProductId(UUID tenantId, UUID productId);
 
     Optional<Contract> findByTenantIdAndContractKey(UUID tenantId, String contractKey);

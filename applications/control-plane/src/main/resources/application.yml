@@ -4,6 +4,13 @@ spring:
   jackson:
     deserialization:
       fail-on-unknown-properties: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Local Keycloak JWKS. Production target is Cognito later.
+          # jwk-set-uri is used so the app can start without eager OIDC discovery.
+          jwk-set-uri: ${USAGECORE_JWK_SET_URI:http://localhost:8081/realms/usagecore/protocol/openid-connect/certs}
   datasource:
     url: ${USAGECORE_DB_URL:jdbc:postgresql://localhost:5432/usagecore}
     username: ${USAGECORE_DB_USERNAME:usagecore}
