@@ -1,6 +1,9 @@
 spring:
   application:
     name: usagecore-control-plane
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
   datasource:
     url: ${USAGECORE_DB_URL:jdbc:postgresql://localhost:5432/usagecore}
     username: ${USAGECORE_DB_USERNAME:usagecore}

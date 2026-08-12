@@ -116,6 +116,13 @@ class ContractVersionPersistenceAdapter implements ContractVersionRepository {
 
     @Override
     @Transactional(readOnly = true)
+    public Optional<ContractVersion> findByContractIdAndVersionNumber(UUID contractId, int versionNumber) {
+        return contractVersionJpaRepository.findByContractIdAndVersionNumber(contractId, versionNumber)
+                .map(this::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<ContractVersion> findByContractId(UUID contractId) {
         return contractVersionJpaRepository.findByContractId(contractId).stream()
                 .map(this::toDomain)

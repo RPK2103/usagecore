@@ -129,8 +129,8 @@ class ContractSchemaConstraintTest {
                 Feature.create(product, BusinessKey.of("api_calls"), "API Calls")
         );
         Contract contract = contractApplicationService.createContract(
-                tenant,
-                product,
+                tenant.id(),
+                product.id(),
                 BusinessKey.of("acme-datapilot")
         );
         Plan plan = Plan.createDraft(product, BusinessKey.of("enterprise-2026"), "Enterprise 2026");
@@ -143,13 +143,14 @@ class ContractSchemaConstraintTest {
                 JAN_1,
                 JUN_1
         );
-        version = contractVersionApplicationService.updateDraftEntitlement(
-                version.id(),
+        version = contractVersionApplicationService.upsertDraftEntitlement(
+                contract.id(),
+                version.versionNumber(),
                 feature.id(),
                 EntitlementMode.LIMITED,
                 LimitConfiguration.ofMaxQuantity(150)
         );
-        version = contractVersionApplicationService.activateVersion(version.id());
+        version = contractVersionApplicationService.activateVersion(contract.id(), version.versionNumber());
 
         ContractVersion loaded = contractVersionRepository.findById(version.id()).orElseThrow();
         assertThat(loaded.status()).isEqualTo(ContractVersionStatus.ACTIVATED);
@@ -291,15 +292,15 @@ class ContractSchemaConstraintTest {
                 Product.create(BusinessKey.of("boundary-product"), "Boundary Product")
         );
         Contract contract = contractApplicationService.createContract(
-                tenant,
-                product,
+                tenant.id(),
+                product.id(),
                 BusinessKey.of("boundary-contract")
         );
 
         ContractVersion v1 = contractVersionApplicationService.createDraftVersion(contract.id(), JAN_1, JUN_1);
-        contractVersionApplicationService.activateVersion(v1.id());
+        contractVersionApplicationService.activateVersion(contract.id(), v1.versionNumber());
         ContractVersion v2 = contractVersionApplicationService.createDraftVersion(contract.id(), JUN_1, null);
-        contractVersionApplicationService.activateVersion(v2.id());
+        contractVersionApplicationService.activateVersion(contract.id(), v2.versionNumber());
 
         assertThat(contractVersionApplicationService.resolveEffectiveVersion(
                 contract.id(),
@@ -322,8 +323,8 @@ class ContractSchemaConstraintTest {
                 Product.create(BusinessKey.of("version-one-product"), "Version One Product")
         );
         Contract contract = contractApplicationService.createContract(
-                tenant,
-                product,
+                tenant.id(),
+                product.id(),
                 BusinessKey.of("version-one-contract")
         );
 
@@ -343,8 +344,8 @@ class ContractSchemaConstraintTest {
                 Product.create(BusinessKey.of("version-two-product"), "Version Two Product")
         );
         Contract contract = contractApplicationService.createContract(
-                tenant,
-                product,
+                tenant.id(),
+                product.id(),
                 BusinessKey.of("version-two-contract")
         );
 
@@ -367,8 +368,8 @@ class ContractSchemaConstraintTest {
                 Product.create(BusinessKey.of("version-seq-product"), "Version Sequential Product")
         );
         Contract contract = contractApplicationService.createContract(
-                tenant,
-                product,
+                tenant.id(),
+                product.id(),
                 BusinessKey.of("version-seq-contract")
         );
 
@@ -403,8 +404,8 @@ class ContractSchemaConstraintTest {
                 Feature.create(product, BusinessKey.of("api_calls"), "API Calls")
         );
         Contract contract = contractApplicationService.createContract(
-                tenant,
-                product,
+                tenant.id(),
+                product.id(),
                 BusinessKey.of("snapshot-contract")
         );
         Plan plan = Plan.createDraft(product, BusinessKey.of("snapshot-plan"), "Snapshot Plan");

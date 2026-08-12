@@ -39,4 +39,28 @@ class DomainArchitectureTest {
             .dependOnClassesThat()
             .resideInAnyPackage("jakarta.persistence..", "javax.persistence..", "org.hibernate..")
             .because("domain must not use JPA annotations or Hibernate APIs");
+
+    @ArchTest
+    static final ArchRule domainMustNotDependOnWeb = noClasses()
+            .that()
+            .resideInAPackage("..domain..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAnyPackage(
+                    "org.springframework.web..",
+                    "jakarta.servlet..",
+                    "javax.servlet.."
+            )
+            .because("domain must remain independent of HTTP/web infrastructure");
+
+    @ArchTest
+    static final ArchRule controllersMustNotDependOnJpaRepositories = noClasses()
+            .that()
+            .resideInAPackage("..adapters.inbound.http..")
+            .and()
+            .haveSimpleNameEndingWith("Controller")
+            .should()
+            .dependOnClassesThat()
+            .resideInAPackage("..adapters.outbound.persistence..")
+            .because("controllers must call application services, not persistence adapters/JPA repositories");
 }

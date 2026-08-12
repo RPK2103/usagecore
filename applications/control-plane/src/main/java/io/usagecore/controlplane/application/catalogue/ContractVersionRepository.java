@@ -12,6 +12,8 @@ public interface ContractVersionRepository {
 
     Optional<ContractVersion> findById(UUID id);
 
+    Optional<ContractVersion> findByContractIdAndVersionNumber(UUID contractId, int versionNumber);
+
     List<ContractVersion> findByContractId(UUID contractId);
 
     List<ContractVersion> findActivatedByContractId(UUID contractId);

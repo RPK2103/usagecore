@@ -2,7 +2,6 @@ package io.usagecore.controlplane.application.catalogue;
 
 import io.usagecore.controlplane.domain.catalogue.Contract;
 import io.usagecore.controlplane.domain.catalogue.ContractVersion;
-import io.usagecore.controlplane.domain.catalogue.DomainInvariantException;
 import io.usagecore.controlplane.domain.catalogue.EntitlementMode;
 import io.usagecore.controlplane.domain.catalogue.Feature;
 import io.usagecore.controlplane.domain.catalogue.LimitConfiguration;
@@ -60,7 +59,7 @@ public class ContractVersionApplicationService {
     ) {
         Contract contract = requireContract(contractId);
         Plan plan = planRepository.findById(planId)
-                .orElseThrow(() -> new DomainInvariantException("Plan not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Plan not found: " + planId));
         ContractVersion version = ContractVersion.createDraftFromPlan(
                 contract,
                 plan,
@@ -72,46 +71,44 @@ public class ContractVersionApplicationService {
     }
 
     @Transactional
-    public ContractVersion addDraftEntitlement(
-            UUID contractVersionId,
+    public ContractVersion upsertDraftEntitlement(
+            UUID contractId,
+            int versionNumber,
             UUID featureId,
             EntitlementMode mode,
             LimitConfiguration limit
     ) {
-        ContractVersion version = requireDraftVersion(contractVersionId);
+        ContractVersion version = requireVersion(contractId, versionNumber);
         Feature feature = featureRepository.findById(featureId)
-                .orElseThrow(() -> new DomainInvariantException("Feature not found"));
-        version.addEntitlement(feature, mode, limit);
+                .orElseThrow(() -> new ResourceNotFoundException("Feature not found: " + featureId));
+        boolean present = version.entitlements().stream()
+                .anyMatch(entitlement -> entitlement.featureId().equals(featureId));
+        if (present) {
+            version.updateEntitlement(featureId, mode, limit);
+        } else {
+            version.addEntitlement(feature, mode, limit);
+        }
         return contractVersionRepository.save(version);
     }
 
     @Transactional
-    public ContractVersion updateDraftEntitlement(
-            UUID contractVersionId,
-            UUID featureId,
-            EntitlementMode mode,
-            LimitConfiguration limit
-    ) {
-        ContractVersion version = requireDraftVersion(contractVersionId);
-        version.updateEntitlement(featureId, mode, limit);
-        return contractVersionRepository.save(version);
-    }
-
-    @Transactional
-    public ContractVersion removeDraftEntitlement(UUID contractVersionId, UUID featureId) {
-        ContractVersion version = requireDraftVersion(contractVersionId);
-        version.removeEntitlement(featureId);
-        return contractVersionRepository.save(version);
-    }
-
-    @Transactional
-    public ContractVersion activateVersion(UUID contractVersionId) {
-        ContractVersion version = contractVersionRepository.findById(contractVersionId)
-                .orElseThrow(() -> new DomainInvariantException("Contract version not found"));
-        requireContract(version.contractId());
+    public ContractVersion activateVersion(UUID contractId, int versionNumber) {
+        ContractVersion version = requireVersion(contractId, versionNumber);
         List<ContractVersion> activated = contractVersionRepository.findActivatedByContractId(version.contractId());
         version.activate(Instant.now(), activated);
         return contractVersionRepository.save(version);
+    }
+
+    @Transactional(readOnly = true)
+    public ContractVersion requireVersion(UUID contractId, int versionNumber) {
+        requireContract(contractId);
+        return contractVersionRepository.findByContractIdAndVersionNumber(contractId, versionNumber)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Contract version not found: contractId="
+                                + contractId
+                                + ", versionNumber="
+                                + versionNumber
+                ));
     }
 
     @Transactional(readOnly = true)
@@ -131,13 +128,6 @@ public class ContractVersionApplicationService {
 
     private Contract requireContract(UUID contractId) {
         return contractRepository.findById(contractId)
-                .orElseThrow(() -> new DomainInvariantException("Contract not found"));
-    }
-
-    private ContractVersion requireDraftVersion(UUID contractVersionId) {
-        ContractVersion version = contractVersionRepository.findById(contractVersionId)
-                .orElseThrow(() -> new DomainInvariantException("Contract version not found"));
-        requireContract(version.contractId());
-        return version;
+                .orElseThrow(() -> new ResourceNotFoundException("Contract not found: " + contractId));
     }
 }

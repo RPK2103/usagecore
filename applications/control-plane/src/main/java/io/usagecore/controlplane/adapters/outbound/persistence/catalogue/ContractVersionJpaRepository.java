@@ -12,6 +12,8 @@ interface ContractVersionJpaRepository extends JpaRepository<ContractVersionJpaE
 
     List<ContractVersionJpaEntity> findByContractId(UUID contractId);
 
+    Optional<ContractVersionJpaEntity> findByContractIdAndVersionNumber(UUID contractId, int versionNumber);
+
     List<ContractVersionJpaEntity> findByContractIdAndStatus(UUID contractId, String status);
 
     @Query("""

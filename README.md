@@ -22,9 +22,15 @@ Long-term modules (build only what the current milestone needs):
 2. **entitlement-runtime** — evaluate entitlements against activated contract state
 3. **usage-pipeline** — ingest, aggregate, reconcile usage (Kafka only after entitlement runtime foundation)
 
-## Phase 1A status
+## Phase 1 status
 
-Control-plane engineering foundation is in place (Spring Boot, PostgreSQL, Flyway, Actuator, tests). Domain business functionality is not implemented yet.
+Phase 1 control-plane is complete for local development:
+
+- Domain + PostgreSQL persistence for catalogue and contracts
+- Use-case application services
+- REST API under `/api/v1` (no authentication yet)
+
+**These endpoints are not protected.** Phase 2 introduces entitlement runtime; authentication/authorization is deferred. Do not treat Phase 1 as production-ready.
 
 See:
 
@@ -66,7 +72,55 @@ Defaults (override via environment when running the app):
 ./mvnw -pl applications/control-plane spring-boot:run
 ```
 
-Health endpoint (only Actuator endpoint exposed): `http://localhost:8080/actuator/health`
+Health: `http://localhost:8080/actuator/health`
+
+## Phase 1 local demo (curl)
+
+Base URL: `http://localhost:8080/api/v1`
+
+```bash
+# 1. Tenant
+curl -s -X POST http://localhost:8080/api/v1/tenants \
+  -H "Content-Type: application/json" \
+  -d '{"tenantKey":"acme","displayName":"Acme Corp"}'
+
+# 2. Product
+curl -s -X POST http://localhost:8080/api/v1/products \
+  -H "Content-Type: application/json" \
+  -d '{"productKey":"datapilot","name":"DataPilot"}'
+
+# 3. Feature (replace PRODUCT_ID)
+curl -s -X POST http://localhost:8080/api/v1/products/PRODUCT_ID/features \
+  -H "Content-Type: application/json" \
+  -d '{"featureKey":"scheduled_exports","name":"Scheduled Exports"}'
+
+# 4. Plan + LIMITED feature + publish
+curl -s -X POST http://localhost:8080/api/v1/products/PRODUCT_ID/plans \
+  -H "Content-Type: application/json" \
+  -d '{"planKey":"enterprise","name":"Enterprise"}'
+
+curl -s -X PUT http://localhost:8080/api/v1/products/PRODUCT_ID/plans/PLAN_ID/features/FEATURE_ID \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"LIMITED","maxQuantity":1000000}'
+
+curl -s -X POST http://localhost:8080/api/v1/products/PRODUCT_ID/plans/PLAN_ID/publish
+
+# 5. Contract + version from plan + activate
+curl -s -X POST http://localhost:8080/api/v1/contracts \
+  -H "Content-Type: application/json" \
+  -d '{"tenantId":"TENANT_ID","productId":"PRODUCT_ID","contractKey":"acme-datapilot"}'
+
+curl -s -X POST http://localhost:8080/api/v1/contracts/CONTRACT_ID/versions/from-plan \
+  -H "Content-Type: application/json" \
+  -d '{"planId":"PLAN_ID","effectiveFrom":"2026-01-01T00:00:00Z","effectiveUntil":"2026-06-01T00:00:00Z"}'
+
+curl -s -X POST http://localhost:8080/api/v1/contracts/CONTRACT_ID/versions/1/activate
+
+# 6. Temporal resolution
+curl -s "http://localhost:8080/api/v1/contracts/CONTRACT_ID/effective-version?at=2026-05-31T23:59:59Z"
+```
+
+Optional correlation header (not authentication): `X-Correlation-Id`.
 
 ## Validation
 
@@ -82,6 +136,7 @@ Requires Docker available for Testcontainers PostgreSQL tests.
 
 ## Non-goals (current)
 
+- Authentication / authorization (deferred)
 - Kafka / event streaming (deferred)
 - Kubernetes, AWS, Terraform
 - Redis, MongoDB, Elasticsearch, GraphQL, service mesh
