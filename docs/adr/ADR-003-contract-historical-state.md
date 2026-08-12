@@ -10,8 +10,10 @@ Commercial disputes and entitlement audits require a durable record of what was 
 
 ## Decision
 
-- `ContractVersion` has a draft phase that is mutable.
-- Once activated, a `ContractVersion` and its entitlement snapshots are immutable historical commercial evidence.
+- `ContractVersion` has a **DRAFT** phase that is mutable.
+- Once **ACTIVATED**, a `ContractVersion` and its entitlement snapshots are immutable historical commercial evidence.
+- **ACTIVATED** is a lifecycle state (approved and frozen), distinct from temporal effectiveness.
+- Whether an ACTIVATED version governs a particular instant is derived from `[effectiveFrom, effectiveUntil)` — a future-dated version may already be ACTIVATED without yet being commercially effective.
 - Corrections and commercial changes create a new `ContractVersion` with a new effective interval — not in-place edits to activated rows.
 
 ## Consequences

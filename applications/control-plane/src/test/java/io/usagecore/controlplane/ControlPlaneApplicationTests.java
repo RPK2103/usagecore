@@ -45,7 +45,7 @@ class ControlPlaneApplicationTests {
                 "SELECT version, success FROM flyway_schema_history ORDER BY installed_rank"
         );
         assertThat(migrations).isNotEmpty();
-        assertThat(migrations).extracting(row -> row.get("version")).contains("1", "2");
+        assertThat(migrations).extracting(row -> row.get("version")).contains("1", "2", "3");
         assertThat(migrations).allMatch(row -> Boolean.TRUE.equals(row.get("success")));
     }
 }

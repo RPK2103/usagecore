@@ -1,6 +1,11 @@
 package io.usagecore.controlplane.adapters.outbound.persistence.catalogue;
 
 import io.usagecore.controlplane.domain.catalogue.BusinessKey;
+import io.usagecore.controlplane.domain.catalogue.Contract;
+import io.usagecore.controlplane.domain.catalogue.ContractStatus;
+import io.usagecore.controlplane.domain.catalogue.ContractVersion;
+import io.usagecore.controlplane.domain.catalogue.ContractVersionStatus;
+import io.usagecore.controlplane.domain.catalogue.Entitlement;
 import io.usagecore.controlplane.domain.catalogue.EntitlementMode;
 import io.usagecore.controlplane.domain.catalogue.Feature;
 import io.usagecore.controlplane.domain.catalogue.FeatureStatus;
@@ -75,6 +80,54 @@ final class CataloguePersistenceMapper {
         return PlanFeature.reconstitute(
                 entity.getId(),
                 entity.getPlanId(),
+                entity.getFeatureId(),
+                featureProductId,
+                EntitlementMode.valueOf(entity.getEntitlementMode()),
+                limit
+        );
+    }
+
+    static Contract toDomain(ContractJpaEntity entity) {
+        return Contract.reconstitute(
+                entity.getId(),
+                entity.getTenantId(),
+                entity.getProductId(),
+                BusinessKey.of(entity.getContractKey()),
+                ContractStatus.valueOf(entity.getStatus())
+        );
+    }
+
+    static ContractVersion toDomain(
+            ContractVersionJpaEntity versionEntity,
+            List<EntitlementJpaEntity> entitlementEntities,
+            UUID contractProductId,
+            Map<UUID, UUID> featureIdToProductId
+    ) {
+        List<Entitlement> entitlements = entitlementEntities.stream()
+                .map(entity -> toDomain(entity, featureIdToProductId.get(entity.getFeatureId())))
+                .collect(Collectors.toList());
+        return ContractVersion.reconstitute(
+                versionEntity.getId(),
+                versionEntity.getContractId(),
+                versionEntity.getTenantId(),
+                contractProductId,
+                versionEntity.getVersionNumber(),
+                versionEntity.getSourcePlanId(),
+                ContractVersionStatus.valueOf(versionEntity.getStatus()),
+                versionEntity.getEffectiveFrom(),
+                versionEntity.getEffectiveUntil(),
+                versionEntity.getActivatedAt(),
+                entitlements
+        );
+    }
+
+    static Entitlement toDomain(EntitlementJpaEntity entity, UUID featureProductId) {
+        LimitConfiguration limit = entity.getLimitQuantity() == null
+                ? null
+                : LimitConfiguration.ofMaxQuantity(entity.getLimitQuantity());
+        return Entitlement.reconstitute(
+                entity.getId(),
+                entity.getContractVersionId(),
                 entity.getFeatureId(),
                 featureProductId,
                 EntitlementMode.valueOf(entity.getEntitlementMode()),

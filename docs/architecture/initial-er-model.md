@@ -24,7 +24,7 @@ Tenant
   └── Contract (tenant_id, product_id) ── unique (tenant_id, product_id) initially
         └── ContractVersion
               ├── effective_from, effective_until  -- [from, until)
-              ├── status: DRAFT | ACTIVATED | …
+              ├── status: DRAFT | ACTIVATED
               └── Entitlement (feature_id, limits/flags)  -- frozen on activate
 
 Product

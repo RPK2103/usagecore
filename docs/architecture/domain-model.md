@@ -12,13 +12,13 @@ Identifiers: UUID internal IDs; stable business keys for Tenant, Product, Featur
 | **Plan** | Reusable commercial template (limits, included features). Not historical truth. |
 | **PlanFeature** | Feature membership / limits on a plan template. |
 | **Contract** | Logical commercial relationship: one per tenant/product initially. |
-| **ContractVersion** | Versioned commercial terms with lifecycle (draft → activated) and effective interval. |
-| **Entitlement** | Snapshot of granted feature rights/limits bound to an activated contract version. |
+| **ContractVersion** | Versioned commercial terms with lifecycle (DRAFT → ACTIVATED) and effective interval. ACTIVATED is immutable; temporal effectiveness is derived from the half-open interval. |
+| **Entitlement** | Snapshot of granted feature rights/limits bound to a contract version (frozen on activate). |
 
 ## Lifecycle rules
 
 - **Draft** `ContractVersion`: mutable; may be edited or discarded.
-- **Activated** `ContractVersion`: immutable historical commercial evidence, including entitlement snapshots.
+- **Activated** `ContractVersion`: immutable historical commercial evidence, including entitlement snapshots. ACTIVATED is distinct from temporally effective — effectiveness is derived from `[effectiveFrom, effectiveUntil)`.
 - Changing a **Plan** does not mutate existing activated contracts or their entitlements.
 - Tenant isolation is mandatory on every association.
 
