@@ -12,6 +12,16 @@ spring:
         jwt:
           # Local Keycloak JWKS. Production target is Cognito later.
           jwk-set-uri: ${USAGECORE_JWK_SET_URI:http://localhost:8081/realms/usagecore/protocol/openid-connect/certs}
+  datasource:
+    url: ${USAGECORE_DB_URL:jdbc:postgresql://localhost:5432/usagecore}
+    username: ${USAGECORE_DB_USERNAME:usagecore}
+    password: ${USAGECORE_DB_PASSWORD:usagecore}
+  # Control Plane owns production schema migrations.
+  # Usage Pipeline must not independently race to mutate shared production schema.
+  # Integration tests may override spring.flyway.enabled=true against Testcontainers.
+  flyway:
+    enabled: false
+    locations: classpath:db/migration
   kafka:
     bootstrap-servers: ${USAGECORE_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
@@ -36,6 +46,11 @@ usagecore:
       usage-received: usagecore.usage.received.v1
     consumer-group: usagecore-usage-pipeline-v1
     publish-timeout: 10s
+  outbox:
+    publisher:
+      enabled: true
+      batch-size: 50
+      fixed-delay-ms: 1000
 
 management:
   endpoints:
@@ -46,6 +61,8 @@ management:
     health:
       show-details: never
   health:
+    db:
+      enabled: true
     kafka:
       enabled: true
 

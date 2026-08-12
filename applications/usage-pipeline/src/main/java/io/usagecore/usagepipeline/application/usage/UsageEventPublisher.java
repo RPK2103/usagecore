@@ -1,13 +1,18 @@
 package io.usagecore.usagepipeline.application.usage;
 
-import io.usagecore.events.EventEnvelope;
-import io.usagecore.events.usage.UsageReceivedPayload;
-
 /**
- * Outbound port for publishing UsageReceived events to Kafka.
- * Implementations must wait for broker acknowledgement before returning successfully.
+ * Publishes a pre-serialized UsageReceived envelope to Kafka and waits for broker acknowledgement.
+ * Used by the transactional outbox publisher; HTTP ingestion never calls this synchronously.
  */
 public interface UsageEventPublisher {
 
-    void publish(EventEnvelope<UsageReceivedPayload> event, String partitionKey);
+    void publishSerialized(
+            String topic,
+            String partitionKey,
+            String serializedEnvelope,
+            String eventId,
+            String eventType,
+            String eventVersion,
+            String correlationId
+    );
 }

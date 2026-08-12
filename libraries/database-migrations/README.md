@@ -9,10 +9,11 @@ UsageCore PostgreSQL schema.
 | --- | --- |
 | Production / shared local DB | **Control Plane** (`spring.flyway.enabled=true`) |
 | Entitlement Runtime process | **Does not** migrate production schema by default (`spring.flyway.enabled=false`) |
-| Runtime integration tests | May enable Flyway against a fresh Testcontainers database |
+| Usage Pipeline process | **Does not** migrate production schema by default (`spring.flyway.enabled=false`) |
+| Runtime / pipeline integration tests | May enable Flyway against a fresh Testcontainers database |
 
-Both `control-plane` and `entitlement-runtime` depend on this artifact for schema
-awareness and test migrations. Do not duplicate SQL files under application modules.
+`control-plane`, `entitlement-runtime`, and `usage-pipeline` depend on this artifact for
+schema awareness and test migrations. Do not duplicate SQL files under application modules.
 
 ## Versions
 
@@ -20,6 +21,7 @@ awareness and test migrations. Do not duplicate SQL files under application modu
 | --- | --- |
 | V1–V4 | Foundation, catalogue, contract, security audit (unchanged from Control Plane history) |
 | V5 | `entitlement_decision` append-oriented decision evidence |
+| V6 | `usage_ingestion` + `outbox_event` (Phase 5A durable ingestion / transactional outbox) |
 
 ## Trade-off (v1)
 

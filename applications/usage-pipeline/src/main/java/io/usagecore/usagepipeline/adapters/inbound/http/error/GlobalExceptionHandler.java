@@ -1,6 +1,7 @@
 package io.usagecore.usagepipeline.adapters.inbound.http.error;
 
 import io.usagecore.usagepipeline.application.security.AuthorizationDeniedException;
+import io.usagecore.usagepipeline.application.usage.IdempotencyConflictException;
 import io.usagecore.usagepipeline.application.usage.UsagePublicationException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Clock;
@@ -67,11 +68,25 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.UNAUTHORIZED, ApiErrorCodes.UNAUTHORIZED, "Authentication required", request);
     }
 
+    @ExceptionHandler(IdempotencyConflictException.class)
+    public ResponseEntity<ApiError> handleIdempotencyConflict(
+            IdempotencyConflictException exception,
+            HttpServletRequest request
+    ) {
+        return build(
+                HttpStatus.CONFLICT,
+                ApiErrorCodes.IDEMPOTENCY_CONFLICT,
+                "Idempotency key already used with a different usage payload",
+                request
+        );
+    }
+
     @ExceptionHandler(UsagePublicationException.class)
     public ResponseEntity<ApiError> handlePublicationFailure(
             UsagePublicationException exception,
             HttpServletRequest request
     ) {
+        // Not expected on the HTTP ingestion path after Phase 5A (outbox); retained for publisher surfaces.
         return build(
                 HttpStatus.SERVICE_UNAVAILABLE,
                 ApiErrorCodes.SERVICE_UNAVAILABLE,

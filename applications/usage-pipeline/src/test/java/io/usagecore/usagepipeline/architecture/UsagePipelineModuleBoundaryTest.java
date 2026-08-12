@@ -21,5 +21,7 @@ class UsagePipelineModuleBoundaryTest {
         assertThat(content).doesNotContain("<artifactId>control-plane</artifactId>");
         assertThat(content).doesNotContain("<artifactId>entitlement-runtime</artifactId>");
         assertThat(content).contains("<artifactId>event-contracts</artifactId>");
+        assertThat(content).contains("<artifactId>database-migrations</artifactId>");
+        assertThat(content).contains("<artifactId>spring-boot-starter-jdbc</artifactId>");
     }
 }

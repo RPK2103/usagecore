@@ -30,19 +30,24 @@ Milestones are sequential. Each builds only the workloads it needs.
 - Shared Flyway resources in `libraries/database-migrations`; Control Plane owns production migrations
 - No Kafka, metering, remaining quota, or Redis yet
 
-## Phase 4 — Usage pipeline Kafka foundation (current)
+## Phase 4 — Usage pipeline Kafka foundation
 
 - Independently deployable `applications/usage-pipeline`
 - Authenticated `POST /api/v1/usage/events` → Kafka `usagecore.usage.received.v1`
 - Shared `libraries/event-contracts` (transport envelopes only)
 - Deterministic partition key `tenantId|productKey|meterKey`
 - Testcontainers Kafka evidence; local KRaft Kafka in Docker Compose
-- **Not yet:** outbox, inbox/dedup, aggregation, quota, Streams ([ADR-008](adr/ADR-008-kafka-usage-topology.md))
 
-## Phase 5 — Distributed usage correctness
+## Phase 5A — Durable ingestion + transactional outbox (current)
 
-- Transactional outbox / consumer inbox
-- Business idempotency via `idempotencyKey`
+- PostgreSQL `usage_ingestion` + `outbox_event` (Flyway V6); HTTP 202 after DB commit
+- Tenant-scoped idempotency key; 409 on same-key/different-payload
+- Asynchronous outbox publisher (`FOR UPDATE SKIP LOCKED`); at-least-once to Kafka
+- [ADR-009](adr/ADR-009-transactional-outbox-ingestion-idempotency.md)
+
+## Phase 5B — Consumer correctness
+
+- Consumer inbox / processed-event deduplication
 - Deliberate retry / poison-message behavior
 
 ## Phase 6 — Metering and aggregation

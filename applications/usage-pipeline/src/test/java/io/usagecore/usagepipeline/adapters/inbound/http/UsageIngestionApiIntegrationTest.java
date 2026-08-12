@@ -10,6 +10,8 @@ import io.usagecore.events.EventEnvelope;
 import io.usagecore.events.EventTypes;
 import io.usagecore.events.EventVersions;
 import io.usagecore.events.usage.UsageReceivedPayload;
+import io.usagecore.usagepipeline.application.outbox.OutboxPublisherApplicationService;
+import io.usagecore.usagepipeline.application.outbox.OutboxStatus;
 import io.usagecore.usagepipeline.application.usage.UnsupportedUsageEventException;
 import io.usagecore.usagepipeline.application.usage.UsagePartitionKey;
 import io.usagecore.usagepipeline.support.RecordingUsageProcessorConfiguration.RecordingUsageReceivedProcessor;
@@ -28,6 +30,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 class UsageIngestionApiIntegrationTest extends AbstractUsageApiIntegrationTest {
 
@@ -40,18 +43,26 @@ class UsageIngestionApiIntegrationTest extends AbstractUsageApiIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private OutboxPublisherApplicationService outboxPublisher;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @Value("${usagecore.kafka.topics.usage-received}")
     private String usageReceivedTopic;
 
     @BeforeEach
     void clearRecording() {
         recordingProcessor.clear();
+        jdbcTemplate.update("DELETE FROM outbox_event");
+        jdbcTemplate.update("DELETE FROM usage_ingestion");
     }
 
     @Test
     void noAuthentication_returns401() {
         givenUnauthenticatedJson()
-                .body(validBody())
+                .body(validBody("export-job-unauth"))
                 .when()
                 .post("/usage/events")
                 .then()
@@ -62,7 +73,7 @@ class UsageIngestionApiIntegrationTest extends AbstractUsageApiIntegrationTest {
     @Test
     void tokenWithoutTenant_returns403() {
         givenBearer(TestJwtSupport.developerWithoutTenant())
-                .body(validBody())
+                .body(validBody("export-job-no-tenant"))
                 .when()
                 .post("/usage/events")
                 .then()
@@ -73,7 +84,7 @@ class UsageIngestionApiIntegrationTest extends AbstractUsageApiIntegrationTest {
     @Test
     void platformAdminWithoutTenant_returns403() {
         givenBearer(TestJwtSupport.platformAdmin())
-                .body(validBody())
+                .body(validBody("export-job-admin"))
                 .when()
                 .post("/usage/events")
                 .then()
@@ -83,7 +94,7 @@ class UsageIngestionApiIntegrationTest extends AbstractUsageApiIntegrationTest {
 
     @Test
     void tenantIdInBody_returns400() {
-        Map<String, Object> body = validBody();
+        Map<String, Object> body = validBody("export-job-tenant-body");
         body.put("tenantId", ACME_TENANT.toString());
 
         givenBearer(developerToken(ACME_TENANT))
@@ -97,7 +108,7 @@ class UsageIngestionApiIntegrationTest extends AbstractUsageApiIntegrationTest {
 
     @Test
     void unknownRequestProperty_returns400() {
-        Map<String, Object> body = validBody();
+        Map<String, Object> body = validBody("export-job-unknown");
         body.put("unexpectedField", "nope");
 
         givenBearer(developerToken(ACME_TENANT))
@@ -111,7 +122,7 @@ class UsageIngestionApiIntegrationTest extends AbstractUsageApiIntegrationTest {
 
     @Test
     void quantityNonPositive_returns400() {
-        Map<String, Object> body = validBody();
+        Map<String, Object> body = validBody("export-job-qty");
         body.put("quantity", 0);
 
         givenBearer(developerToken(ACME_TENANT))
@@ -129,7 +140,7 @@ class UsageIngestionApiIntegrationTest extends AbstractUsageApiIntegrationTest {
 
         String eventId = givenBearer(developerToken(ACME_TENANT))
                 .header("X-Correlation-Id", correlationId)
-                .body(validBody())
+                .body(validBody("export-job-174"))
                 .when()
                 .post("/usage/events")
                 .then()
@@ -137,8 +148,16 @@ class UsageIngestionApiIntegrationTest extends AbstractUsageApiIntegrationTest {
                 .body("status", equalTo("ACCEPTED"))
                 .body("eventId", notNullValue())
                 .body("correlationId", equalTo(correlationId))
+                .body("idempotentReplay", equalTo(false))
                 .extract()
                 .path("eventId");
+
+        assertThat(countIngestions()).isEqualTo(1);
+        assertThat(countOutbox(OutboxStatus.PENDING.name())).isEqualTo(1);
+
+        int published = outboxPublisher.publishBatch(50);
+        assertThat(published).isEqualTo(1);
+        assertThat(countOutbox(OutboxStatus.PUBLISHED.name())).isEqualTo(1);
 
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
                 assertThat(recordingProcessor.events()).isNotEmpty()
@@ -158,20 +177,20 @@ class UsageIngestionApiIntegrationTest extends AbstractUsageApiIntegrationTest {
         assertThat(event.aggregateId()).isEqualTo(
                 UsagePartitionKey.of(ACME_TENANT, "datapilot-cloud", "scheduled_export")
         );
-
-        // Prove deserialization through event-contracts module types already used above.
         assertThat(event.payload()).isInstanceOf(UsageReceivedPayload.class);
     }
 
     @Test
-    void emittedEvent_usesDeterministicPartitionKey() throws Exception {
+    void emittedEvent_usesDeterministicPartitionKey() {
         givenBearer(developerToken(ACME_TENANT))
                 .header("X-Correlation-Id", "partition-key-corr")
-                .body(validBody())
+                .body(validBody("export-job-partition"))
                 .when()
                 .post("/usage/events")
                 .then()
                 .statusCode(202);
+
+        outboxPublisher.publishBatch(50);
 
         await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
                 assertThat(recordingProcessor.events()).isNotEmpty()
@@ -226,13 +245,27 @@ class UsageIngestionApiIntegrationTest extends AbstractUsageApiIntegrationTest {
                 .noneMatch(e -> "export-job-unsupported".equals(e.payload().idempotencyKey()));
     }
 
-    private static Map<String, Object> validBody() {
+    private long countIngestions() {
+        Long count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM usage_ingestion", Long.class);
+        return count == null ? 0L : count;
+    }
+
+    private long countOutbox(String status) {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM outbox_event WHERE status = ?",
+                Long.class,
+                status
+        );
+        return count == null ? 0L : count;
+    }
+
+    private static Map<String, Object> validBody(String idempotencyKey) {
         Map<String, Object> body = new HashMap<>();
         body.put("productKey", "datapilot-cloud");
         body.put("meterKey", "scheduled_export");
         body.put("quantity", 1);
         body.put("occurredAt", OCCURRED_AT.toString());
-        body.put("idempotencyKey", "export-job-174");
+        body.put("idempotencyKey", idempotencyKey);
         return body;
     }
 }

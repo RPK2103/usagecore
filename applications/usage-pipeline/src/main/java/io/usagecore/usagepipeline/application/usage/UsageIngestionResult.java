@@ -5,6 +5,7 @@ import java.util.UUID;
 public record UsageIngestionResult(
         UUID eventId,
         String status,
-        String correlationId
+        String correlationId,
+        boolean idempotentReplay
 ) {
 }

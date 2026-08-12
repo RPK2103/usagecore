@@ -1,9 +1,5 @@
 package io.usagecore.usagepipeline.adapters.outbound.messaging;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.usagecore.events.EventEnvelope;
-import io.usagecore.events.usage.UsageReceivedPayload;
 import io.usagecore.usagepipeline.application.usage.UsageEventPublisher;
 import io.usagecore.usagepipeline.application.usage.UsagePublicationException;
 import io.usagecore.usagepipeline.configuration.KafkaProperties;
@@ -16,8 +12,7 @@ import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Component;
 
 /**
- * Spring Kafka publisher that waits for broker acknowledgement before returning.
- * Not fire-and-forget; not transactional outbox (Phase 5+).
+ * Publishes the exact stored outbox envelope JSON to Kafka and waits for broker acknowledgement.
  */
 @Component
 public class SpringKafkaUsageEventPublisher implements UsageEventPublisher {
@@ -28,36 +23,34 @@ public class SpringKafkaUsageEventPublisher implements UsageEventPublisher {
     public static final String HEADER_EVENT_ID = "eventId";
 
     private final KafkaTemplate<String, String> kafkaTemplate;
-    private final ObjectMapper objectMapper;
     private final KafkaProperties kafkaProperties;
 
     public SpringKafkaUsageEventPublisher(
             KafkaTemplate<String, String> kafkaTemplate,
-            ObjectMapper objectMapper,
             KafkaProperties kafkaProperties
     ) {
         this.kafkaTemplate = kafkaTemplate;
-        this.objectMapper = objectMapper;
         this.kafkaProperties = kafkaProperties;
     }
 
     @Override
-    public void publish(EventEnvelope<UsageReceivedPayload> event, String partitionKey) {
-        String topic = kafkaProperties.topics().usageReceived();
-        String json;
-        try {
-            json = objectMapper.writeValueAsString(event);
-        } catch (JsonProcessingException ex) {
-            throw new UsagePublicationException("Failed to serialize usage event", ex);
+    public void publishSerialized(
+            String topic,
+            String partitionKey,
+            String serializedEnvelope,
+            String eventId,
+            String eventType,
+            String eventVersion,
+            String correlationId
+    ) {
+        String resolvedTopic = topic != null ? topic : kafkaProperties.topics().usageReceived();
+        ProducerRecord<String, String> record = new ProducerRecord<>(resolvedTopic, partitionKey, serializedEnvelope);
+        if (correlationId != null) {
+            record.headers().add(new RecordHeader(HEADER_CORRELATION_ID, correlationId.getBytes()));
         }
-
-        ProducerRecord<String, String> record = new ProducerRecord<>(topic, partitionKey, json);
-        if (event.correlationId() != null) {
-            record.headers().add(new RecordHeader(HEADER_CORRELATION_ID, event.correlationId().getBytes()));
-        }
-        record.headers().add(new RecordHeader(HEADER_EVENT_TYPE, event.eventType().getBytes()));
-        record.headers().add(new RecordHeader(HEADER_EVENT_VERSION, event.eventVersion().getBytes()));
-        record.headers().add(new RecordHeader(HEADER_EVENT_ID, event.eventId().toString().getBytes()));
+        record.headers().add(new RecordHeader(HEADER_EVENT_TYPE, eventType.getBytes()));
+        record.headers().add(new RecordHeader(HEADER_EVENT_VERSION, eventVersion.getBytes()));
+        record.headers().add(new RecordHeader(HEADER_EVENT_ID, eventId.getBytes()));
 
         long timeoutMillis = kafkaProperties.publishTimeout().toMillis();
         try {

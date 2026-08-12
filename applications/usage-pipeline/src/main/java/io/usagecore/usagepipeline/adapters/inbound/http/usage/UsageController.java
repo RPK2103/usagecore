@@ -24,7 +24,8 @@ public class UsageController {
 
     /**
      * Accepts a usage event for asynchronous processing.
-     * HTTP 202 means Kafka acknowledged publication — not aggregation or quota update.
+     * HTTP 202 means durably accepted in PostgreSQL (ingestion + outbox) — not Kafka processed,
+     * aggregated, quota updated, or billed.
      */
     @PostMapping(path = "/events", consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasRole('DEVELOPER')")
@@ -37,6 +38,11 @@ public class UsageController {
                 request.idempotencyKey()
         );
         return ResponseEntity.status(HttpStatus.ACCEPTED)
-                .body(new SubmitUsageEventResponse(result.eventId(), result.status(), result.correlationId()));
+                .body(new SubmitUsageEventResponse(
+                        result.eventId(),
+                        result.status(),
+                        result.correlationId(),
+                        result.idempotentReplay()
+                ));
     }
 }
