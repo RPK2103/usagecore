@@ -20,7 +20,9 @@
     <description>Multi-tenant entitlement and usage platform</description>
 
     <modules>
+        <module>libraries/database-migrations</module>
         <module>applications/control-plane</module>
+        <module>applications/entitlement-runtime</module>
     </modules>
 
     <properties>

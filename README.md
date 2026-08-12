@@ -24,14 +24,26 @@ Long-term modules (build only what the current milestone needs):
 2. **entitlement-runtime** — evaluate entitlements against activated contract state
 3. **usage-pipeline** — ingest, aggregate, reconcile usage (Kafka only after entitlement runtime foundation)
 
-## Phase 2A status
+## Phase 3 status
 
-Control Plane APIs under `/api/v1` require a validated JWT (OAuth2 resource server).
+Two independently deployable applications share the authoritative PostgreSQL commercial schema:
 
-- **Tenant authority** comes from the validated JWT `tenant_id` claim (plus roles).
-- Do **not** treat `X-Tenant-ID`, URL/query parameters, or request-body `tenantId` as authorization evidence. A body may include `tenantId` where administratively required; the server compares it to the authenticated context.
-- Keycloak is the **local/demo** identity provider. Production target is Cognito later.
-- PostgreSQL RLS is intentionally deferred for v1 ([ADR-006](docs/adr/ADR-006-postgresql-rls.md)).
+| Application | Port (default) | Flyway in process |
+| --- | --- | --- |
+| Control Plane | `8080` | **Enabled** — production schema migration owner |
+| Entitlement Runtime | `8082` | **Disabled** by default — must not mutate shared production schema on every replica startup |
+
+Flyway SQL lives once in [`libraries/database-migrations`](libraries/database-migrations/README.md) (V1–V5). Integration tests for either app may enable Flyway against a fresh Testcontainers database.
+
+Entitlement Runtime:
+
+- `POST /api/v1/entitlements/check` — authenticated commercial decision (`ALLOW` / `DENY` / `ALLOW_WITH_LIMIT`)
+- Tenant identity comes **only** from the validated JWT `tenant_id` claim (never from the request body)
+- Reads activated `ContractVersion` entitlement snapshots via JDBC (not live PlanFeature)
+- Persists append-only `entitlement_decision` evidence
+- **No** remainingQuota / consumedUnits / Kafka / Redis yet — see [ADR-007](docs/adr/ADR-007-entitlement-runtime-read-architecture.md)
+
+Control Plane APIs under `/api/v1` still require a validated JWT. PostgreSQL RLS remains deferred ([ADR-006](docs/adr/ADR-006-postgresql-rls.md)).
 
 See:
 
@@ -61,7 +73,7 @@ docker compose -f infrastructure/docker/docker-compose.yml up -d
 | Keycloak | `http://localhost:8081` (admin / admin) |
 | Realm | `usagecore` |
 
-Defaults when running the app:
+Defaults when running apps:
 
 | Variable | Default |
 | --- | --- |
@@ -82,11 +94,20 @@ Passwords match usernames unless noted. Tenant-bound users ship with **placehold
 | `acme-tenant-admin` | TENANT_ADMIN | Acme placeholder |
 | `acme-auditor` | AUDITOR | Acme placeholder |
 | `acme-developer` | DEVELOPER | Acme placeholder |
+| `globex-developer` | DEVELOPER | Globex placeholder |
 | `globex-billing` | BILLING_OPERATOR | Globex placeholder |
 
-After creating real Tenant rows, update Keycloak user attributes so `tenant_id` matches the database UUID (or create tenants with those fixed UUIDs via admin tooling). Automated tests mint JWTs and do not require a live Keycloak.
+**Local-demo automation item:** placeholder Keycloak `tenant_id` values do not automatically match Tenant UUIDs created via Control Plane APIs. Do **not** weaken JWT tenant rules to paper over this. Align Keycloak attributes (or create tenants with those fixed UUIDs) before a live Keycloak→runtime demo.
 
-Obtain a token (password grant, local only):
+Automated tests mint JWTs and do not require a live Keycloak.
+
+### Local M2M client (demo only)
+
+| Client | Secret | Notes |
+| --- | --- | --- |
+| `usagecore-datapilot-m2m-demo` | `datapilot-m2m-demo-secret-local-only` | Client-credentials demo; hardcoded Acme placeholder `tenant_id`; **not production** |
+
+Obtain a user token (password grant, local only):
 
 ```bash
 curl -s -X POST "http://localhost:8081/realms/usagecore/protocol/openid-connect/token" \
@@ -97,37 +118,53 @@ curl -s -X POST "http://localhost:8081/realms/usagecore/protocol/openid-connect/
   -d "grant_type=password"
 ```
 
-## Run the control-plane application
+## Run applications
 
 ```bash
-# Windows
-.\mvnw.cmd -pl applications/control-plane spring-boot:run
+# Windows — Control Plane (owns Flyway migrations)
+.\mvnw.cmd -pl applications/control-plane -am spring-boot:run
+
+# Windows — Entitlement Runtime (Flyway disabled; schema must already exist)
+.\mvnw.cmd -pl applications/entitlement-runtime -am spring-boot:run
 
 # Unix
-./mvnw -pl applications/control-plane spring-boot:run
+./mvnw -pl applications/control-plane -am spring-boot:run
+./mvnw -pl applications/entitlement-runtime -am spring-boot:run
 ```
 
-Health (unauthenticated): `http://localhost:8080/actuator/health`
+| App | Health |
+| --- | --- |
+| Control Plane | `http://localhost:8080/actuator/health` |
+| Entitlement Runtime | `http://localhost:8082/actuator/health` |
 
-## Authenticated local demo (curl)
+## Authenticated local demos (curl)
+
+### Control Plane
 
 Base URL: `http://localhost:8080/api/v1`
 
-Set `TOKEN` from the Keycloak token response `access_token`, then:
-
 ```bash
-# 1. Tenant (PLATFORM_ADMIN)
 curl -s -X POST http://localhost:8080/api/v1/tenants \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"tenantKey":"acme","displayName":"Acme Corp"}'
-
-# 2. Product
-curl -s -X POST http://localhost:8080/api/v1/products \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"productKey":"datapilot","name":"DataPilot"}'
 ```
+
+### Entitlement Runtime
+
+Base URL: `http://localhost:8082/api/v1`
+
+Requires a **tenant-bound** JWT (`DEVELOPER`, `TENANT_ADMIN`, or `CONTRACT_MANAGER`). `tenantId` must **not** appear in the body.
+
+```bash
+curl -s -X POST http://localhost:8082/api/v1/entitlements/check \
+  -H "Authorization: Bearer $DEVELOPER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "X-Correlation-Id: demo-1" \
+  -d '{"productKey":"datapilot-cloud","featureKey":"scheduled_exports","requestedUnits":1}'
+```
+
+`configuredLimit` is contractual configuration only. Remaining quota arrives in a later metering phase.
 
 Optional correlation header (not authentication): `X-Correlation-Id`.
 
@@ -149,8 +186,7 @@ docker compose -f infrastructure/docker/docker-compose.yml config
 
 ## Non-goals (current)
 
-- Entitlement-runtime application / check endpoint
-- Kafka / event streaming
+- Kafka / event streaming / usage metering / remaining quota
 - Cognito / AWS / Kubernetes
 - Redis, MongoDB, Elasticsearch, GraphQL, service mesh
 - AI / LLM components

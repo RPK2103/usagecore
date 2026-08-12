@@ -1,0 +1,42 @@
+spring:
+  application:
+    name: usagecore-entitlement-runtime
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Local Keycloak JWKS. Production target is Cognito later.
+          jwk-set-uri: ${USAGECORE_JWK_SET_URI:http://localhost:8081/realms/usagecore/protocol/openid-connect/certs}
+  datasource:
+    url: ${USAGECORE_DB_URL:jdbc:postgresql://localhost:5432/usagecore}
+    username: ${USAGECORE_DB_USERNAME:usagecore}
+    password: ${USAGECORE_DB_PASSWORD:usagecore}
+  # Control Plane owns production schema migrations.
+  # Runtime replicas must not mutate shared production schema on every startup.
+  # Integration tests may override spring.flyway.enabled=true against Testcontainers.
+  flyway:
+    enabled: false
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+  health:
+    db:
+      enabled: true
+
+server:
+  port: ${SERVER_PORT:8082}
+
+logging:
+  level:
+    root: INFO
+    io.usagecore: INFO

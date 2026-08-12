@@ -66,6 +66,15 @@ class DomainArchitectureTest {
             .because("domain must remain independent of Spring Security and Keycloak");
 
     @ArchTest
+    static final ArchRule mustNotDependOnEntitlementRuntime = noClasses()
+            .that()
+            .resideInAPackage("io.usagecore.controlplane..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAPackage("io.usagecore.entitlementruntime..")
+            .because("control-plane must remain independent of the entitlement-runtime module");
+
+    @ArchTest
     static final ArchRule controllersMustNotDependOnJpaRepositories = noClasses()
             .that()
             .resideInAPackage("..adapters.inbound.http..")

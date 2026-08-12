@@ -11,9 +11,12 @@
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
-    <artifactId>control-plane</artifactId>
-    <name>UsageCore Control Plane</name>
-    <description>Control-plane workload foundation</description>
+    <artifactId>entitlement-runtime</artifactId>
+    <name>UsageCore Entitlement Runtime</name>
+    <description>
+        Low-latency authenticated commercial entitlement decisions.
+        No compile-time dependency on the Control Plane module.
+    </description>
 
     <dependencies>
         <dependency>
@@ -31,7 +34,7 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa</artifactId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -6,11 +6,13 @@ UsageCore is a multi-tenant entitlement and usage platform. PostgreSQL is the tr
 
 | Workload | Responsibility |
 | --- | --- |
-| control-plane | Catalog and commercial configuration: Tenant, Product, Feature, Plan, Contract, ContractVersion activation |
-| entitlement-runtime | Read activated contract evidence; answer entitlement checks |
-| usage-pipeline | Meter ingestion, aggregation, reconciliation against entitlements |
+| control-plane | Catalog and commercial configuration: Tenant, Product, Feature, Plan, Contract, ContractVersion activation; **production Flyway owner** |
+| entitlement-runtime | Authenticated entitlement checks against activated contract snapshots; decision evidence; no Control Plane compile-time dependency ([ADR-007](../adr/ADR-007-entitlement-runtime-read-architecture.md)) |
+| usage-pipeline | Meter ingestion, aggregation, reconciliation against entitlements (not built yet) |
 
 Build only workloads required by the active milestone. Kafka starts only after entitlement-runtime foundation exists. No frontend in this repo.
+
+Shared Flyway SQL: [`libraries/database-migrations`](../../libraries/database-migrations/README.md).
 
 ## Boundaries
 
