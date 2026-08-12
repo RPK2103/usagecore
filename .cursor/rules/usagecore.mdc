@@ -1,0 +1,35 @@
+---
+description: UsageCore permanent engineering constraints
+alwaysApply: true
+---
+
+# UsageCore
+
+Java 21 + Spring Boot 3 + Maven. PostgreSQL is the transactional source of truth.
+
+## Architecture
+
+- Pragmatic hexagonal/clean architecture.
+- Domain must not depend on Spring MVC, Kafka, PostgreSQL, AWS, or HTTP.
+- Workloads (long-term): control-plane, entitlement-runtime, usage-pipeline.
+- Build only workloads required by the current milestone.
+- Kafka only after entitlement-runtime foundation.
+- No frontend in this repo. No AI/LLM components.
+- Do not add Redis, MongoDB, Elasticsearch, GraphQL, service mesh, or similar without an explicit measured requirement.
+
+## Domain invariants
+
+- Tenant isolation is mandatory.
+- At-least-once delivery; never claim end-to-end exactly-once.
+- `ContractVersion` activated state is immutable historical commercial evidence.
+- Plans are templates; activated contracts never change when plans change.
+
+## Working rules
+
+- Inspect existing code before edits; make bounded changes only.
+- Do not rewrite unrelated working code.
+- Run relevant validation after every implementation task.
+- Fix failures caused by your changes before declaring completion.
+- Report commands executed, results, files changed, unresolved risks.
+- Never say production-ready without evidence.
+- No fabricated test, benchmark, security, or deployment claims.
