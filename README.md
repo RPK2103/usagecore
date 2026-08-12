@@ -12,54 +12,51 @@ Java backend portfolio project. No frontend in this repository.
 | Framework | Spring Boot 3 |
 | Build | Maven |
 | Transactional store | PostgreSQL |
+| Async usage transport | Kafka (JSON envelopes; at-least-once) |
 | Architecture | Pragmatic hexagonal / clean |
 | Auth (local) | Keycloak (OIDC) — **development only** |
 | Auth (production target) | Cognito later (not configured in this phase) |
 
 ## Workloads
 
-Long-term modules (build only what the current milestone needs):
-
-1. **control-plane** — tenants, products, features, plans, contracts, activation
-2. **entitlement-runtime** — evaluate entitlements against activated contract state
-3. **usage-pipeline** — ingest, aggregate, reconcile usage (Kafka only after entitlement runtime foundation)
-
-## Phase 3 status
-
-Two independently deployable applications share the authoritative PostgreSQL commercial schema:
-
-| Application | Port (default) | Flyway in process |
+| Workload | Module | Default port |
 | --- | --- | --- |
-| Control Plane | `8080` | **Enabled** — production schema migration owner |
-| Entitlement Runtime | `8082` | **Disabled** by default — must not mutate shared production schema on every replica startup |
+| control-plane | `applications/control-plane` | `8080` |
+| entitlement-runtime | `applications/entitlement-runtime` | `8082` |
+| usage-pipeline | `applications/usage-pipeline` | `8083` |
 
-Flyway SQL lives once in [`libraries/database-migrations`](libraries/database-migrations/README.md) (V1–V5). Integration tests for either app may enable Flyway against a fresh Testcontainers database.
+Shared libraries:
 
-Entitlement Runtime:
+- [`libraries/database-migrations`](libraries/database-migrations/README.md) — Flyway SQL (Control Plane owns production migrations)
+- [`libraries/event-contracts`](libraries/event-contracts) — versioned Kafka transport envelopes only
 
-- `POST /api/v1/entitlements/check` — authenticated commercial decision (`ALLOW` / `DENY` / `ALLOW_WITH_LIMIT`)
-- Tenant identity comes **only** from the validated JWT `tenant_id` claim (never from the request body)
-- Reads activated `ContractVersion` entitlement snapshots via JDBC (not live PlanFeature)
-- Persists append-only `entitlement_decision` evidence
-- **No** remainingQuota / consumedUnits / Kafka / Redis yet — see [ADR-007](docs/adr/ADR-007-entitlement-runtime-read-architecture.md)
+## Phase 4 status
 
-Control Plane APIs under `/api/v1` still require a validated JWT. PostgreSQL RLS remains deferred ([ADR-006](docs/adr/ADR-006-postgresql-rls.md)).
+Three independently deployable applications:
 
-See:
+| Application | Responsibility |
+| --- | --- |
+| Control Plane | Catalog / commercial configuration; production Flyway owner |
+| Entitlement Runtime | Authenticated entitlement checks against activated snapshots ([ADR-007](docs/adr/ADR-007-entitlement-runtime-read-architecture.md)) |
+| Usage Pipeline | Authenticated usage ingestion → Kafka `UsageReceived` ([ADR-008](docs/adr/ADR-008-kafka-usage-topology.md)) |
 
-- [docs/architecture/system-overview.md](docs/architecture/system-overview.md)
-- [docs/architecture/domain-model.md](docs/architecture/domain-model.md)
-- [docs/architecture/initial-er-model.md](docs/architecture/initial-er-model.md)
-- [docs/roadmap.md](docs/roadmap.md)
-- [docs/adr/](docs/adr/)
+Usage Pipeline Phase 4 fundamentals only:
+
+- `POST /api/v1/usage/events` → **202** after Kafka acknowledgement
+- Topic: `usagecore.usage.received.v1`
+- Partition key: `tenantId|productKey|meterKey`
+- Consumer group: `usagecore-usage-pipeline-v1`
+- **No** outbox, inbox/dedup, aggregation, quota, Streams, or billing yet
+
+HTTP 202 means Kafka accepted the event for asynchronous processing — not that usage totals or quotas changed.
 
 ## Prerequisites
 
 - Java 21 JDK
-- Docker (for local PostgreSQL, Keycloak, and Testcontainers)
+- Docker (for local PostgreSQL, Keycloak, Kafka, and Testcontainers)
 - Maven Wrapper (included; no system Maven required)
 
-## Local PostgreSQL + Keycloak
+## Local PostgreSQL + Keycloak + Kafka
 
 Credentials in Compose are **local development only**, not for production.
 
@@ -71,6 +68,7 @@ docker compose -f infrastructure/docker/docker-compose.yml up -d
 | --- | --- |
 | PostgreSQL | `localhost:5432` |
 | Keycloak | `http://localhost:8081` (admin / admin) |
+| Kafka (KRaft single broker) | `localhost:9092` |
 | Realm | `usagecore` |
 
 Defaults when running apps:
@@ -81,6 +79,7 @@ Defaults when running apps:
 | `USAGECORE_DB_USERNAME` | `usagecore` |
 | `USAGECORE_DB_PASSWORD` | `usagecore` |
 | `USAGECORE_JWK_SET_URI` | `http://localhost:8081/realms/usagecore/protocol/openid-connect/certs` |
+| `USAGECORE_KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` |
 
 ### Demo users (local/demo-only)
 
@@ -113,8 +112,8 @@ Obtain a user token (password grant, local only):
 curl -s -X POST "http://localhost:8081/realms/usagecore/protocol/openid-connect/token" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "client_id=usagecore-control-plane" \
-  -d "username=platform-admin" \
-  -d "password=platform-admin" \
+  -d "username=acme-developer" \
+  -d "password=acme-developer" \
   -d "grant_type=password"
 ```
 
@@ -127,15 +126,20 @@ curl -s -X POST "http://localhost:8081/realms/usagecore/protocol/openid-connect/
 # Windows — Entitlement Runtime (Flyway disabled; schema must already exist)
 .\mvnw.cmd -pl applications/entitlement-runtime -am spring-boot:run
 
+# Windows — Usage Pipeline (Kafka required)
+.\mvnw.cmd -pl applications/usage-pipeline -am spring-boot:run
+
 # Unix
 ./mvnw -pl applications/control-plane -am spring-boot:run
 ./mvnw -pl applications/entitlement-runtime -am spring-boot:run
+./mvnw -pl applications/usage-pipeline -am spring-boot:run
 ```
 
 | App | Health |
 | --- | --- |
 | Control Plane | `http://localhost:8080/actuator/health` |
 | Entitlement Runtime | `http://localhost:8082/actuator/health` |
+| Usage Pipeline | `http://localhost:8083/actuator/health` |
 
 ## Authenticated local demos (curl)
 
@@ -164,7 +168,27 @@ curl -s -X POST http://localhost:8082/api/v1/entitlements/check \
   -d '{"productKey":"datapilot-cloud","featureKey":"scheduled_exports","requestedUnits":1}'
 ```
 
-`configuredLimit` is contractual configuration only. Remaining quota arrives in a later metering phase.
+### Usage Pipeline
+
+Base URL: `http://localhost:8083/api/v1`
+
+Requires a **tenant-bound** `DEVELOPER` JWT (or M2M client with that role). `tenantId` must **not** appear in the body — tenant comes only from the JWT.
+
+```bash
+curl -s -X POST http://localhost:8083/api/v1/usage/events \
+  -H "Authorization: Bearer $DEVELOPER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "X-Correlation-Id: export-corr-1" \
+  -d '{
+    "productKey":"datapilot-cloud",
+    "meterKey":"scheduled_export",
+    "quantity":1,
+    "occurredAt":"2026-08-12T14:30:00Z",
+    "idempotencyKey":"export-job-174"
+  }'
+```
+
+Expected: HTTP **202** with `status=ACCEPTED` after Kafka acknowledgement. This does **not** mean usage totals, quotas, or billing state changed.
 
 Optional correlation header (not authentication): `X-Correlation-Id`.
 
@@ -178,7 +202,7 @@ Optional correlation header (not authentication): `X-Correlation-Id`.
 ./mvnw clean verify
 ```
 
-Requires Docker available for Testcontainers PostgreSQL tests.
+Requires Docker available for Testcontainers PostgreSQL and Kafka tests.
 
 ```bash
 docker compose -f infrastructure/docker/docker-compose.yml config
@@ -186,8 +210,11 @@ docker compose -f infrastructure/docker/docker-compose.yml config
 
 ## Non-goals (current)
 
-- Kafka / event streaming / usage metering / remaining quota
+- Transactional outbox / inbox deduplication / retry-DLQ architecture (Phase 5)
+- Usage aggregation, MeterDefinition, remaining quota, billing periods
+- Kafka Streams / Schema Registry / Avro
 - Cognito / AWS / Kubernetes
 - Redis, MongoDB, Elasticsearch, GraphQL, service mesh
 - AI / LLM components
 - Frontend UI
+- Production-ready / exactly-once claims

@@ -1,0 +1,58 @@
+spring:
+  application:
+    name: usagecore-usage-pipeline
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+    serialization:
+      write-dates-as-timestamps: false
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Local Keycloak JWKS. Production target is Cognito later.
+          jwk-set-uri: ${USAGECORE_JWK_SET_URI:http://localhost:8081/realms/usagecore/protocol/openid-connect/certs}
+  kafka:
+    bootstrap-servers: ${USAGECORE_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+    consumer:
+      group-id: ${usagecore.kafka.consumer-group}
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      enable-auto-commit: false
+    listener:
+      ack-mode: record
+
+usagecore:
+  kafka:
+    topics:
+      usage-received: usagecore.usage.received.v1
+    consumer-group: usagecore-usage-pipeline-v1
+    publish-timeout: 10s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+  health:
+    kafka:
+      enabled: true
+
+server:
+  port: ${SERVER_PORT:8083}
+
+logging:
+  level:
+    root: INFO
+    io.usagecore: INFO

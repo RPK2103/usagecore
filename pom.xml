@@ -21,8 +21,10 @@
 
     <modules>
         <module>libraries/database-migrations</module>
+        <module>libraries/event-contracts</module>
         <module>applications/control-plane</module>
         <module>applications/entitlement-runtime</module>
+        <module>applications/usage-pipeline</module>
     </modules>
 
     <properties>
