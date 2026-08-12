@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: usagecore-postgres
+    environment:
+      # Local development credentials only — not for production.
+      POSTGRES_DB: usagecore
+      POSTGRES_USER: usagecore
+      POSTGRES_PASSWORD: usagecore
+    ports:
+      - "5432:5432"
+    volumes:
+      - usagecore_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U usagecore -d usagecore"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  usagecore_pgdata:

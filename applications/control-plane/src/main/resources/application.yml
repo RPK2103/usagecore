@@ -1,0 +1,38 @@
+spring:
+  application:
+    name: usagecore-control-plane
+  datasource:
+    url: ${USAGECORE_DB_URL:jdbc:postgresql://localhost:5432/usagecore}
+    username: ${USAGECORE_DB_USERNAME:usagecore}
+    password: ${USAGECORE_DB_PASSWORD:usagecore}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+  health:
+    db:
+      enabled: true
+
+server:
+  port: ${SERVER_PORT:8080}
+
+logging:
+  level:
+    root: INFO
+    io.usagecore: INFO

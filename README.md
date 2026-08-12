@@ -22,9 +22,9 @@ Long-term modules (build only what the current milestone needs):
 2. **entitlement-runtime** — evaluate entitlements against activated contract state
 3. **usage-pipeline** — ingest, aggregate, reconcile usage (Kafka only after entitlement runtime foundation)
 
-## Phase 0 status
+## Phase 1A status
 
-Repository foundation and architecture decisions only. No application services, schema, or infrastructure code yet.
+Control-plane engineering foundation is in place (Spring Boot, PostgreSQL, Flyway, Actuator, tests). Domain business functionality is not implemented yet.
 
 See:
 
@@ -33,6 +33,52 @@ See:
 - [docs/architecture/initial-er-model.md](docs/architecture/initial-er-model.md)
 - [docs/roadmap.md](docs/roadmap.md)
 - [docs/adr/](docs/adr/)
+
+## Prerequisites
+
+- Java 21 JDK
+- Docker (for local PostgreSQL and Testcontainers)
+- Maven Wrapper (included; no system Maven required)
+
+## Local PostgreSQL
+
+Credentials in Compose are **local development only**, not for production.
+
+```bash
+docker compose -f infrastructure/docker/docker-compose.yml up -d
+```
+
+Defaults (override via environment when running the app):
+
+| Variable | Default |
+| --- | --- |
+| `USAGECORE_DB_URL` | `jdbc:postgresql://localhost:5432/usagecore` |
+| `USAGECORE_DB_USERNAME` | `usagecore` |
+| `USAGECORE_DB_PASSWORD` | `usagecore` |
+
+## Run the control-plane application
+
+```bash
+# Windows
+.\mvnw.cmd -pl applications/control-plane spring-boot:run
+
+# Unix
+./mvnw -pl applications/control-plane spring-boot:run
+```
+
+Health endpoint (only Actuator endpoint exposed): `http://localhost:8080/actuator/health`
+
+## Validation
+
+```bash
+# Windows
+.\mvnw.cmd clean verify
+
+# Unix
+./mvnw clean verify
+```
+
+Requires Docker available for Testcontainers PostgreSQL tests.
 
 ## Non-goals (current)
 
