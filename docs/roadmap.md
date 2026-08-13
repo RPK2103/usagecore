@@ -60,20 +60,31 @@ Milestones are sequential. Each builds only the workloads it needs.
 - Unknown/inactive meter → non-retryable → DLQ; no silent meter creation
 - Kafka Streams deferred ([ADR-011](adr/ADR-011-metering-and-aggregation.md))
 
-## Phase 6B — Event-time windows + late-event semantics (current)
+## Phase 6B — Event-time windows + late-event semantics
 
 - `MeterDefinition.aggregationWindow` (`MONTHLY` / `DAILY`) — UTC half-open intervals
 - Derived `usage_window_aggregate` + `usage_ledger.is_late` — Flyway V9
 - Window assignment from `occurredAt`; late events accepted and update historical windows
 - Semantic meter fields immutable after create ([ADR-012](adr/ADR-012-event-time-and-windowed-metering.md))
 - Kafka Streams re-evaluated and still deferred
-- No commercial-period finalization, quota, billing, or adjustments yet
+- No commercial-period finalization, billing, or adjustments yet
 
-## Phase 6C+ — Quota (later)
+## Phase 6C — Contract-aware quota enforcement (current)
 
-- Remaining quota against entitlements (as evidenced)
+- `POST /api/v1/usage/consume` in Usage Pipeline — synchronous strict quota admission
+- `MeterDefinition.featureId` explicit meter → feature mapping (Flyway V10)
+- Authoritative `quota_state` + durable `quota_consumption` (idempotent); reporting aggregates remain async
+- SUM / COUNT supported; LIMITED + MAX → `UNSUPPORTED_QUOTA_METER_TYPE`
+- PostgreSQL conditional UPDATE is concurrency authority; transactional outbox on accept
+- `/entitlements/check` remains read-oriented; `/usage/events` remains telemetry without strict quota
+- [ADR-013](adr/ADR-013-contract-aware-quota-enforcement.md)
 
-## Phase 7 — Tenancy hardening (optional RLS revisit)
+## Phase 7 — Commercial period lifecycle (later)
+
+- Commercial period OPEN/CLOSING/RECONCILING/FINALIZED
+- UsageAdjustment / reconciliation / replay (as evidenced)
+
+## Phase 7B — Tenancy hardening (optional RLS revisit)
 
 - Revisit PostgreSQL RLS with proven session handling ([ADR-006](adr/ADR-006-postgresql-rls.md))
 - Expand audit of commercial-state access as needed

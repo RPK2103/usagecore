@@ -25,6 +25,7 @@ schema awareness and test migrations. Do not duplicate SQL files under applicati
 | V7 | `processed_event` + `usage_ledger` (Phase 5B consumer inbox / canonical usage ledger) |
 | V8 | `meter_definition` + `usage_aggregate` (Phase 6A metering / deterministic aggregation) |
 | V9 | `aggregation_window` on meters + `usage_window_aggregate` + `usage_ledger.is_late` (Phase 6B event-time windows) |
+| V10 | `meter_definition.feature_id` (nullable for legacy unbound rows; NOT VALID check for new/updated rows) + `quota_state` + `quota_consumption` (Phase 6C contract-aware quota). Legacy pre-V10 meters are not auto-mapped to features. |
 
 ## Trade-off (v1)
 

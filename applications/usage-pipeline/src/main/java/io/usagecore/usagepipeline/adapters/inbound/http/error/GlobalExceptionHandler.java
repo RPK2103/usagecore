@@ -1,5 +1,6 @@
 package io.usagecore.usagepipeline.adapters.inbound.http.error;
 
+import io.usagecore.usagepipeline.application.quota.CommercialInvariantException;
 import io.usagecore.usagepipeline.application.security.AuthorizationDeniedException;
 import io.usagecore.usagepipeline.application.usage.IdempotencyConflictException;
 import io.usagecore.usagepipeline.application.usage.UsageAggregateNotFoundException;
@@ -78,6 +79,19 @@ public class GlobalExceptionHandler {
                 HttpStatus.CONFLICT,
                 ApiErrorCodes.IDEMPOTENCY_CONFLICT,
                 "Idempotency key already used with a different usage payload",
+                request
+        );
+    }
+
+    @ExceptionHandler(CommercialInvariantException.class)
+    public ResponseEntity<ApiError> handleCommercialInvariant(
+            CommercialInvariantException exception,
+            HttpServletRequest request
+    ) {
+        return build(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                ApiErrorCodes.COMMERCIAL_INVARIANT_VIOLATION,
+                exception.getMessage(),
                 request
         );
     }

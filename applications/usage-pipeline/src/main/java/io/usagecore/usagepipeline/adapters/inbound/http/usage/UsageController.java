@@ -1,5 +1,7 @@
 package io.usagecore.usagepipeline.adapters.inbound.http.usage;
 
+import io.usagecore.usagepipeline.application.quota.QuotaConsumptionApplicationService;
+import io.usagecore.usagepipeline.application.quota.QuotaConsumeResult;
 import io.usagecore.usagepipeline.application.usage.UsageAggregateQueryService;
 import io.usagecore.usagepipeline.application.usage.UsageIngestionApplicationService;
 import io.usagecore.usagepipeline.application.usage.UsageIngestionResult;
@@ -21,15 +23,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class UsageController {
 
     private final UsageIngestionApplicationService usageIngestionApplicationService;
+    private final QuotaConsumptionApplicationService quotaConsumptionApplicationService;
     private final UsageAggregateQueryService usageAggregateQueryService;
     private final UsageWindowAggregateQueryService usageWindowAggregateQueryService;
 
     public UsageController(
             UsageIngestionApplicationService usageIngestionApplicationService,
+            QuotaConsumptionApplicationService quotaConsumptionApplicationService,
             UsageAggregateQueryService usageAggregateQueryService,
             UsageWindowAggregateQueryService usageWindowAggregateQueryService
     ) {
         this.usageIngestionApplicationService = usageIngestionApplicationService;
+        this.quotaConsumptionApplicationService = quotaConsumptionApplicationService;
         this.usageAggregateQueryService = usageAggregateQueryService;
         this.usageWindowAggregateQueryService = usageWindowAggregateQueryService;
     }
@@ -37,7 +42,9 @@ public class UsageController {
     /**
      * Accepts a usage event for asynchronous processing.
      * HTTP 202 means durably accepted in PostgreSQL (ingestion + outbox) — not Kafka processed,
-     * aggregated, quota updated, or billed.
+     * aggregated, quota-enforced, or billed.
+     * <p>
+     * Clients needing strict quota admission must use {@code POST /consume}.
      */
     @PostMapping(path = "/events", consumes = MediaType.APPLICATION_JSON_VALUE)
     @PreAuthorize("hasRole('DEVELOPER')")
@@ -56,6 +63,24 @@ public class UsageController {
                         result.correlationId(),
                         result.idempotentReplay()
                 ));
+    }
+
+    /**
+     * Synchronous contract-aware quota consumption.
+     * Commercial ACCEPTED/REJECTED outcomes return HTTP 200.
+     * Tenant identity comes only from the JWT — never from the body.
+     */
+    @PostMapping(path = "/consume", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PreAuthorize("hasRole('DEVELOPER')")
+    public ResponseEntity<ConsumeUsageResponse> consume(@Valid @RequestBody ConsumeUsageRequest request) {
+        QuotaConsumeResult result = quotaConsumptionApplicationService.consume(
+                request.productKey(),
+                request.meterKey(),
+                request.quantity(),
+                request.occurredAt(),
+                request.idempotencyKey()
+        );
+        return ResponseEntity.ok(ConsumeUsageResponse.from(result));
     }
 
     /**

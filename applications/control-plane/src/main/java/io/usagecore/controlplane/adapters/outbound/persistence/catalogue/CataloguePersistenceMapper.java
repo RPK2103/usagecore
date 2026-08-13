@@ -63,6 +63,7 @@ final class CataloguePersistenceMapper {
         return MeterDefinition.reconstitute(
                 entity.getId(),
                 entity.getProductId(),
+                entity.getFeatureId(),
                 BusinessKey.of(entity.getMeterKey()),
                 entity.getDisplayName(),
                 AggregationType.valueOf(entity.getAggregationType()),

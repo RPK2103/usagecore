@@ -17,6 +17,9 @@ class MeterDefinitionJpaEntity {
     @Column(name = "product_id", nullable = false)
     private UUID productId;
 
+    @Column(name = "feature_id")
+    private UUID featureId;
+
     @Column(name = "meter_key", nullable = false, length = 64)
     private String meterKey;
 
@@ -44,6 +47,7 @@ class MeterDefinitionJpaEntity {
     MeterDefinitionJpaEntity(
             UUID id,
             UUID productId,
+            UUID featureId,
             String meterKey,
             String displayName,
             String aggregationType,
@@ -54,6 +58,7 @@ class MeterDefinitionJpaEntity {
     ) {
         this.id = id;
         this.productId = productId;
+        this.featureId = featureId;
         this.meterKey = meterKey;
         this.displayName = displayName;
         this.aggregationType = aggregationType;
@@ -69,6 +74,10 @@ class MeterDefinitionJpaEntity {
 
     UUID getProductId() {
         return productId;
+    }
+
+    UUID getFeatureId() {
+        return featureId;
     }
 
     String getMeterKey() {

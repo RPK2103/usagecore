@@ -32,27 +32,27 @@ Shared libraries:
 
 ## Phase 6B status
 
+Phase 6B (event-time windows) is complete. **Phase 6C** adds contract-aware quota.
+
 Three independently deployable applications:
 
 | Application | Responsibility |
 | --- | --- |
-| Control Plane | Catalog / commercial configuration (including MeterDefinition); production Flyway owner |
-| Entitlement Runtime | Authenticated entitlement checks against activated snapshots ([ADR-007](docs/adr/ADR-007-entitlement-runtime-read-architecture.md)) |
-| Usage Pipeline | Durable ingestion + outbox + idempotent consumer ledger + lifetime + event-time window aggregation ([ADR-008](docs/adr/ADR-008-kafka-usage-topology.md), [ADR-009](docs/adr/ADR-009-transactional-outbox-ingestion-idempotency.md), [ADR-010](docs/adr/ADR-010-consumer-inbox-and-idempotent-processing.md), [ADR-011](docs/adr/ADR-011-metering-and-aggregation.md), [ADR-012](docs/adr/ADR-012-event-time-and-windowed-metering.md)) |
+| Control Plane | Catalog / commercial configuration (including MeterDefinition → Feature); production Flyway owner |
+| Entitlement Runtime | Authenticated **read-only** entitlement checks against activated snapshots ([ADR-007](docs/adr/ADR-007-entitlement-runtime-read-architecture.md)) |
+| Usage Pipeline | Durable ingestion + outbox + idempotent consumer ledger/aggregates + **synchronous quota consume** ([ADR-008](docs/adr/ADR-008-kafka-usage-topology.md)–[ADR-013](docs/adr/ADR-013-contract-aware-quota-enforcement.md)) |
 
-Usage Pipeline Phase 6B:
+Usage Pipeline Phase 6C:
 
-- `POST /api/v1/usage/events` → **202** after PostgreSQL commit of `usage_ingestion` + `outbox_event`
-- Asynchronous outbox publisher → topic `usagecore.usage.received.v1` (at-least-once)
-- Consumer inbox (`processed_event`) + canonical `usage_ledger` + lifetime `usage_aggregate` + event-time `usage_window_aggregate`
-- Aggregation from Control Plane `MeterDefinition`: `SUM` / `COUNT` / `MAX` with UTC `MONTHLY` / `DAILY` windows
-- Window ownership uses `occurredAt`; late events are accepted, marked `is_late`, and update historical windows
-- Duplicate Kafka redelivery → successful no-op (one ledger effect, one lifetime + one window contribution)
-- Bounded retry; poison/non-retryable (including unknown meter) → `usagecore.usage.received.v1.dlq`
-- Reads: `GET /api/v1/usage/aggregates/{productKey}/{meterKey}` and `.../windows/current` (tenant from JWT)
-- **No** commercial-period finalization, Streams, quota, or pricing yet
+- `POST /api/v1/usage/consume` → **200** with `ACCEPTED` / `REJECTED` commercial decision (strict LIMITED quota via PostgreSQL)
+- `POST /api/v1/usage/events` → **202** telemetry ingestion — does **not** provide synchronous quota guarantees
+- Authoritative `quota_state` + `quota_consumption`; async `usage_window_aggregate` may lag (Kafka)
+- SUM / COUNT quota; LIMITED + MAX → `UNSUPPORTED_QUOTA_METER_TYPE`
+- Meter → Feature mapping via `MeterDefinition.featureId` (immutable)
+- Contract applicability uses `occurredAt`; windows reuse Phase 6B UTC resolver
+- **No** commercial-period finalization, Streams, billing, or pricing yet
 
-HTTP 202 means durably accepted for asynchronous processing — not that quotas/billing changed.
+HTTP 202 on `/events` means durably accepted for asynchronous processing — not that quotas/billing changed.
 
 ## Prerequisites
 

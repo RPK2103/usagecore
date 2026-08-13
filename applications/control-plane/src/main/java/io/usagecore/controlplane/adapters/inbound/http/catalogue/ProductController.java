@@ -88,6 +88,7 @@ public class ProductController {
         MeterResponse body = MeterResponse.from(
                 meterDefinitionApplicationService.createMeter(
                         productId,
+                        request.featureId(),
                         BusinessKey.of(request.meterKey()),
                         request.displayName(),
                         request.aggregationType(),

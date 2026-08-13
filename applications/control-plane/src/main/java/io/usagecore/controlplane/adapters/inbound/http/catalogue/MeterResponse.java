@@ -9,6 +9,7 @@ import java.util.UUID;
 public record MeterResponse(
         UUID id,
         UUID productId,
+        UUID featureId,
         String meterKey,
         String displayName,
         AggregationType aggregationType,
@@ -20,6 +21,7 @@ public record MeterResponse(
         return new MeterResponse(
                 meter.id(),
                 meter.productId(),
+                meter.featureId(),
                 meter.meterKey().value(),
                 meter.displayName(),
                 meter.aggregationType(),

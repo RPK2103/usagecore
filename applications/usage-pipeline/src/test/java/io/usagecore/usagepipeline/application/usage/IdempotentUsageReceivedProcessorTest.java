@@ -29,6 +29,7 @@ class IdempotentUsageReceivedProcessorTest {
     private static final UUID TENANT = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID PRODUCT_ID = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
     private static final UUID METER_ID = UUID.fromString("11111111-2222-3333-4444-555555555555");
+    private static final UUID FEATURE_ID = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-ffffffffffff");
     private static final Instant OCCURRED = Instant.parse("2026-08-12T14:30:00Z");
     private static final Instant FIXED = Instant.parse("2026-08-12T14:31:00Z");
     private static final UUID EVENT_ID = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
@@ -359,6 +360,8 @@ class IdempotentUsageReceivedProcessorTest {
                     PRODUCT_ID,
                     "datapilot-cloud",
                     "scheduled_export",
+                    FEATURE_ID,
+                    "scheduled_export_feature",
                     AggregationType.COUNT,
                     AggregationWindow.MONTHLY
             )));
@@ -370,6 +373,8 @@ class IdempotentUsageReceivedProcessorTest {
                     PRODUCT_ID,
                     "datapilot-cloud",
                     "scheduled_export",
+                    FEATURE_ID,
+                    "scheduled_export_feature",
                     AggregationType.SUM,
                     AggregationWindow.MONTHLY
             )));

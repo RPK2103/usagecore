@@ -12,22 +12,27 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
     @Test
     void createAndGetSumCountMaxMeters() {
         String productId = createProduct("datapilot-meters", "DataPilot Meters");
+        String featureId = createFeature(productId, "api_access", "API Access");
+        String exportFeatureId = createFeature(productId, "scheduled_export", "Scheduled Export");
+        String workspaceFeatureId = createFeature(productId, "workspace", "Workspace");
 
         String sumId = givenJson()
                 .body("""
                         {
                           "meterKey": "api_requests",
                           "displayName": "API Requests",
+                          "featureId": "%s",
                           "aggregationType": "SUM",
                           "aggregationWindow": "MONTHLY"
                         }
-                        """)
+                        """.formatted(featureId))
                 .when()
                 .post("/products/{productId}/meters", productId)
                 .then()
                 .statusCode(201)
                 .body("id", notNullValue())
                 .body("productId", equalTo(productId))
+                .body("featureId", equalTo(featureId))
                 .body("meterKey", equalTo("api_requests"))
                 .body("displayName", equalTo("API Requests"))
                 .body("aggregationType", equalTo("SUM"))
@@ -41,16 +46,18 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
                         {
                           "meterKey": "scheduled_export",
                           "displayName": "Scheduled Export",
+                          "featureId": "%s",
                           "aggregationType": "COUNT",
                           "aggregationWindow": "MONTHLY"
                         }
-                        """)
+                        """.formatted(exportFeatureId))
                 .when()
                 .post("/products/{productId}/meters", productId)
                 .then()
                 .statusCode(201)
                 .body("aggregationType", equalTo("COUNT"))
                 .body("aggregationWindow", equalTo("MONTHLY"))
+                .body("featureId", equalTo(exportFeatureId))
                 .body("meterKey", equalTo("scheduled_export"));
 
         givenJson()
@@ -58,10 +65,11 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
                         {
                           "meterKey": "workspace_size",
                           "displayName": "Workspace Size",
+                          "featureId": "%s",
                           "aggregationType": "MAX",
                           "aggregationWindow": "MONTHLY"
                         }
-                        """)
+                        """.formatted(workspaceFeatureId))
                 .when()
                 .post("/products/{productId}/meters", productId)
                 .then()
@@ -75,6 +83,7 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
                 .then()
                 .statusCode(200)
                 .body("meterKey", equalTo("api_requests"))
+                .body("featureId", equalTo(featureId))
                 .body("aggregationType", equalTo("SUM"))
                 .body("aggregationWindow", equalTo("MONTHLY"));
     }
@@ -82,16 +91,18 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
     @Test
     void duplicateProductMeterKeyRejected() {
         String productId = createProduct("dup-meter-product", "Dup Meter Product");
+        String featureId = createFeature(productId, "api_access", "API Access");
 
         givenJson()
                 .body("""
                         {
                           "meterKey": "api_requests",
                           "displayName": "API Requests",
+                          "featureId": "%s",
                           "aggregationType": "SUM",
                           "aggregationWindow": "MONTHLY"
                         }
-                        """)
+                        """.formatted(featureId))
                 .when()
                 .post("/products/{productId}/meters", productId)
                 .then()
@@ -102,10 +113,11 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
                         {
                           "meterKey": "api_requests",
                           "displayName": "API Requests Again",
+                          "featureId": "%s",
                           "aggregationType": "COUNT",
                           "aggregationWindow": "MONTHLY"
                         }
-                        """)
+                        """.formatted(featureId))
                 .when()
                 .post("/products/{productId}/meters", productId)
                 .then()
@@ -116,16 +128,18 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
     @Test
     void invalidAggregationTypeRejected() {
         String productId = createProduct("bad-agg-product", "Bad Agg Product");
+        String featureId = createFeature(productId, "api_access", "API Access");
 
         givenJson()
                 .body("""
                         {
                           "meterKey": "api_requests",
                           "displayName": "API Requests",
+                          "featureId": "%s",
                           "aggregationType": "AVERAGE",
                           "aggregationWindow": "MONTHLY"
                         }
-                        """)
+                        """.formatted(featureId))
                 .when()
                 .post("/products/{productId}/meters", productId)
                 .then()
@@ -136,16 +150,18 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
     @Test
     void invalidAggregationWindowRejected() {
         String productId = createProduct("bad-window-product", "Bad Window Product");
+        String featureId = createFeature(productId, "api_access", "API Access");
 
         givenJson()
                 .body("""
                         {
                           "meterKey": "api_requests",
                           "displayName": "API Requests",
+                          "featureId": "%s",
                           "aggregationType": "SUM",
                           "aggregationWindow": "WEEKLY"
                         }
-                        """)
+                        """.formatted(featureId))
                 .when()
                 .post("/products/{productId}/meters", productId)
                 .then()
@@ -156,6 +172,29 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
     @Test
     void unknownJsonPropertyRejected() {
         String productId = createProduct("unknown-json-meter", "Unknown JSON Meter");
+        String featureId = createFeature(productId, "api_access", "API Access");
+
+        givenJson()
+                .body("""
+                        {
+                          "meterKey": "api_requests",
+                          "displayName": "API Requests",
+                          "featureId": "%s",
+                          "aggregationType": "SUM",
+                          "aggregationWindow": "MONTHLY",
+                          "pricing": 9.99
+                        }
+                        """.formatted(featureId))
+                .when()
+                .post("/products/{productId}/meters", productId)
+                .then()
+                .statusCode(400)
+                .body("errorCode", equalTo("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void missingFeatureIdRejected() {
+        String productId = createProduct("missing-feature-meter", "Missing Feature Meter");
 
         givenJson()
                 .body("""
@@ -163,8 +202,7 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
                           "meterKey": "api_requests",
                           "displayName": "API Requests",
                           "aggregationType": "SUM",
-                          "aggregationWindow": "MONTHLY",
-                          "pricing": 9.99
+                          "aggregationWindow": "MONTHLY"
                         }
                         """)
                 .when()
@@ -177,15 +215,17 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
     @Test
     void nonAdminCannotCreateMeter_auditorCanRead() {
         String productId = createProduct("meter-rbac-product", "Meter RBAC Product");
+        String featureId = createFeature(productId, "api_access", "API Access");
         String meterId = givenJson()
                 .body("""
                         {
                           "meterKey": "api_requests",
                           "displayName": "API Requests",
+                          "featureId": "%s",
                           "aggregationType": "SUM",
                           "aggregationWindow": "MONTHLY"
                         }
-                        """)
+                        """.formatted(featureId))
                 .when()
                 .post("/products/{productId}/meters", productId)
                 .then()
@@ -200,10 +240,11 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
                         {
                           "meterKey": "other_meter",
                           "displayName": "Other",
+                          "featureId": "%s",
                           "aggregationType": "SUM",
                           "aggregationWindow": "MONTHLY"
                         }
-                        """)
+                        """.formatted(featureId))
                 .when()
                 .post("/products/{productId}/meters", productId)
                 .then()
@@ -216,6 +257,7 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
                 .then()
                 .statusCode(200)
                 .body("meterKey", equalTo("api_requests"))
+                .body("featureId", equalTo(featureId))
                 .body("aggregationWindow", equalTo("MONTHLY"));
     }
 
@@ -229,6 +271,22 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
                         """.formatted(key, name))
                 .when()
                 .post("/products")
+                .then()
+                .statusCode(201)
+                .extract()
+                .path("id");
+    }
+
+    private String createFeature(String productId, String featureKey, String name) {
+        return givenJson()
+                .body("""
+                        {
+                          "featureKey": "%s",
+                          "name": "%s"
+                        }
+                        """.formatted(featureKey, name))
+                .when()
+                .post("/products/{productId}/features", productId)
                 .then()
                 .statusCode(201)
                 .extract()

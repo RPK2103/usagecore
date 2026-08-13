@@ -8,7 +8,7 @@ UsageCore is a multi-tenant entitlement and usage platform. PostgreSQL is the tr
 | --- | --- |
 | control-plane | Catalog and commercial configuration: Tenant, Product, Feature, Plan, MeterDefinition, Contract, ContractVersion activation; **production Flyway owner** |
 | entitlement-runtime | Authenticated entitlement checks against activated contract snapshots; decision evidence; no Control Plane compile-time dependency ([ADR-007](../adr/ADR-007-entitlement-runtime-read-architecture.md)) |
-| usage-pipeline | Durable usage ingestion, transactional outbox, idempotent consumer ledger + deterministic aggregates; no Control Plane / Entitlement Runtime compile-time dependency ([ADR-008](../adr/ADR-008-kafka-usage-topology.md), [ADR-009](../adr/ADR-009-transactional-outbox-ingestion-idempotency.md), [ADR-010](../adr/ADR-010-consumer-inbox-and-idempotent-processing.md), [ADR-011](../adr/ADR-011-metering-and-aggregation.md)) |
+| usage-pipeline | Durable usage ingestion, transactional outbox, idempotent consumer ledger + aggregates, **synchronous contract-aware quota consume**; no Control Plane / Entitlement Runtime compile-time dependency ([ADR-008](../adr/ADR-008-kafka-usage-topology.md)–[ADR-013](../adr/ADR-013-contract-aware-quota-enforcement.md)) |
 
 Build only workloads required by the active milestone. No frontend in this repo.
 
@@ -50,13 +50,15 @@ Usage ingestion never accepts `tenantId` from the request body; tenant comes onl
 - Activated `ContractVersion` state (and entitlement snapshots) is immutable ([ADR-003](../adr/ADR-003-contract-historical-state.md)).
 - Effective time uses half-open intervals `[effectiveFrom, effectiveUntil)` in UTC-compatible timestamps ([ADR-005](../adr/ADR-005-temporal-model.md)).
 
-## Usage pipeline (Phase 6B)
+## Usage pipeline (Phase 6C)
 
 - Topic: `usagecore.usage.received.v1` (DLQ: `usagecore.usage.received.v1.dlq`)
 - Partition key: `tenantId|productKey|meterKey` (ordering within partition; hot-partition trade-off documented in ADR-008)
-- HTTP 202 = durable PostgreSQL acceptance (ingestion + outbox) — not quota/billing update
-- Consumer: `processed_event` inbox + immutable `usage_ledger` + lifetime `usage_aggregate` + event-time `usage_window_aggregate` keyed by `eventId` ([ADR-010](../adr/ADR-010-consumer-inbox-and-idempotent-processing.md), [ADR-011](../adr/ADR-011-metering-and-aggregation.md), [ADR-012](../adr/ADR-012-event-time-and-windowed-metering.md))
+- `POST /api/v1/usage/events` → HTTP 202 = durable PostgreSQL acceptance (ingestion + outbox) — **not** strict quota
+- `POST /api/v1/usage/consume` → HTTP 200 commercial `ACCEPTED`/`REJECTED` with PostgreSQL-authoritative `quota_state` ([ADR-013](../adr/ADR-013-contract-aware-quota-enforcement.md))
+- Consumer: `processed_event` inbox + immutable `usage_ledger` + lifetime `usage_aggregate` + event-time `usage_window_aggregate` keyed by `eventId`
 - Aggregation from Control Plane `MeterDefinition` (`SUM` / `COUNT` / `MAX`, `MONTHLY` / `DAILY` UTC windows) via shared-schema JDBC read
+- Meter → Feature via explicit `MeterDefinition.featureId` for contractual quota
 - Window ownership uses `occurredAt`; late arrivals are accepted and update historical windows before commercial finalization
 - Delivery remains at-least-once; duplicate redelivery is a successful no-op (aggregates not reapplied)
 - Kafka Streams deferred — PostgreSQL UPSERT retained for transactional correctness with inbox/ledger
