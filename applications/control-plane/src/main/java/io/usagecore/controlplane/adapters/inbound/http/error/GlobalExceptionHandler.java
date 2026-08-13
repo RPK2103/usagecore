@@ -102,6 +102,15 @@ public class GlobalExceptionHandler {
                     request
             );
         }
+        if (containsIgnoreCase(detail, "ex_commercial_period_no_overlap")
+                || containsIgnoreCase(detail, "uq_commercial_period_tenant_product_bounds")) {
+            return build(
+                    HttpStatus.CONFLICT,
+                    ApiErrorCodes.COMMERCIAL_INTERVAL_CONFLICT,
+                    "Commercial periods must not overlap for the same tenant and product",
+                    request
+            );
+        }
         if (containsIgnoreCase(detail, "uq_") || containsIgnoreCase(detail, "unique")
                 || containsIgnoreCase(detail, "duplicate")) {
             return build(
@@ -156,7 +165,9 @@ public class GlobalExceptionHandler {
         if (lower.contains("cannot be mutated")
                 || lower.contains("only draft")
                 || lower.contains("cannot be published")
-                || lower.contains("cannot be modified")) {
+                || lower.contains("cannot be modified")
+                || lower.contains("invalid commercial period transition")
+                || lower.contains("finalized commercial period is terminal")) {
             return ApiErrorCodes.INVALID_STATE_TRANSITION;
         }
         return ApiErrorCodes.DOMAIN_CONFLICT;

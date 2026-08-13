@@ -6,6 +6,9 @@ import io.usagecore.events.EventEnvelope;
 import io.usagecore.events.EventTypes;
 import io.usagecore.events.EventVersions;
 import io.usagecore.events.usage.UsageReceivedPayload;
+import io.usagecore.usagepipeline.application.commercial.CommercialPeriodReader;
+import io.usagecore.usagepipeline.application.commercial.CommercialPeriodStatus;
+import io.usagecore.usagepipeline.application.commercial.CommercialPeriodView;
 import io.usagecore.usagepipeline.application.outbox.OutboxEventRecord;
 import io.usagecore.usagepipeline.application.outbox.OutboxEventRepository;
 import io.usagecore.usagepipeline.application.outbox.OutboxStatus;
@@ -50,6 +53,7 @@ public class QuotaConsumptionApplicationService {
     private final CorrelationIdAccessor correlationIdAccessor;
     private final MeterDefinitionLookup meterDefinitionLookup;
     private final CommercialEntitlementLookup commercialEntitlementLookup;
+    private final CommercialPeriodReader commercialPeriodReader;
     private final UsageWindowResolver usageWindowResolver;
     private final QuotaStateRepository quotaStateRepository;
     private final QuotaConsumptionRepository quotaConsumptionRepository;
@@ -64,6 +68,7 @@ public class QuotaConsumptionApplicationService {
             CorrelationIdAccessor correlationIdAccessor,
             MeterDefinitionLookup meterDefinitionLookup,
             CommercialEntitlementLookup commercialEntitlementLookup,
+            CommercialPeriodReader commercialPeriodReader,
             UsageWindowResolver usageWindowResolver,
             QuotaStateRepository quotaStateRepository,
             QuotaConsumptionRepository quotaConsumptionRepository,
@@ -77,6 +82,7 @@ public class QuotaConsumptionApplicationService {
         this.correlationIdAccessor = correlationIdAccessor;
         this.meterDefinitionLookup = meterDefinitionLookup;
         this.commercialEntitlementLookup = commercialEntitlementLookup;
+        this.commercialPeriodReader = commercialPeriodReader;
         this.usageWindowResolver = usageWindowResolver;
         this.quotaStateRepository = quotaStateRepository;
         this.quotaConsumptionRepository = quotaConsumptionRepository;
@@ -158,6 +164,42 @@ public class QuotaConsumptionApplicationService {
         }
 
         UsageWindow window = usageWindowResolver.resolve(occurredAt, meter.aggregationWindow());
+
+        Optional<CommercialPeriodView> periodOpt = commercialPeriodReader.findCoveringForShare(
+                tenantId,
+                meter.productId(),
+                occurredAt
+        );
+        if (periodOpt.isPresent()) {
+            CommercialPeriodStatus periodStatus = periodOpt.get().status();
+            Optional<String> periodReject = periodRejectReason(periodStatus);
+            if (periodReject.isPresent()) {
+                QuotaConsumptionRecord periodRejected = buildRejectedPeriod(
+                        tenantId,
+                        principal.subject(),
+                        productKey,
+                        meter,
+                        quantity,
+                        occurredAt,
+                        window,
+                        idempotencyKey,
+                        correlationId,
+                        decidedAt,
+                        periodReject.get()
+                );
+                Optional<UUID> insertedPeriod = quotaConsumptionRepository.insertIfAbsent(periodRejected);
+                if (insertedPeriod.isEmpty()) {
+                    QuotaConsumptionRecord winner = quotaConsumptionRepository
+                            .findByTenantAndIdempotencyKey(tenantId, idempotencyKey)
+                            .orElseThrow(() -> new IllegalStateException(
+                                    "Idempotency conflict detected but existing quota consumption was not found"
+                            ));
+                    return replayOrConflict(winner, productKey, meterKey, quantity, occurredAt);
+                }
+                return toResult(periodRejected, false);
+            }
+        }
+        // NO_PERIOD or OPEN: Phase 6C entitlement / quota evaluation continues.
 
         List<CommercialEntitlementMatch> matches = commercialEntitlementLookup.findEffectiveEntitlements(
                 tenantId,
@@ -410,6 +452,55 @@ public class QuotaConsumptionApplicationService {
                 accepted.decidedAt(),
                 null
         ));
+    }
+
+    private static Optional<String> periodRejectReason(CommercialPeriodStatus status) {
+        return switch (status) {
+            case OPEN -> Optional.empty();
+            case CLOSING -> Optional.of(QuotaReasonCodes.PERIOD_CLOSING);
+            case RECONCILING -> Optional.of(QuotaReasonCodes.PERIOD_RECONCILING);
+            case FINALIZED -> Optional.of(QuotaReasonCodes.PERIOD_FINALIZED);
+        };
+    }
+
+    private QuotaConsumptionRecord buildRejectedPeriod(
+            UUID tenantId,
+            String principalId,
+            String productKey,
+            ActiveMeterDefinition meter,
+            long quantity,
+            Instant occurredAt,
+            UsageWindow window,
+            String idempotencyKey,
+            String correlationId,
+            Instant decidedAt,
+            String reason
+    ) {
+        return new QuotaConsumptionRecord(
+                UUID.randomUUID(),
+                null,
+                tenantId,
+                principalId,
+                productKey,
+                meter.meterKey(),
+                meter.meterDefinitionId(),
+                meter.featureKey(),
+                quantity,
+                0L,
+                occurredAt,
+                window.start(),
+                window.end(),
+                idempotencyKey,
+                correlationId,
+                QuotaDecision.REJECTED,
+                reason,
+                null,
+                null,
+                null,
+                null,
+                null,
+                decidedAt
+        );
     }
 
     private QuotaConsumptionRecord buildRejectedWithoutMeter(

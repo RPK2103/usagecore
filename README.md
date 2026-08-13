@@ -30,27 +30,26 @@ Shared libraries:
 - [`libraries/database-migrations`](libraries/database-migrations/README.md) — Flyway SQL (Control Plane owns production migrations)
 - [`libraries/event-contracts`](libraries/event-contracts) — versioned Kafka transport envelopes only
 
-## Phase 6B status
+## Phase 7 status
 
-Phase 6B (event-time windows) is complete. **Phase 6C** adds contract-aware quota.
+Phase 6C (contract-aware quota) is complete. **Phase 7** adds commercial period lifecycle.
 
 Three independently deployable applications:
 
 | Application | Responsibility |
 | --- | --- |
-| Control Plane | Catalog / commercial configuration (including MeterDefinition → Feature); production Flyway owner |
+| Control Plane | Catalog / commercial configuration (including MeterDefinition → Feature) + **CommercialPeriod** lifecycle; production Flyway owner |
 | Entitlement Runtime | Authenticated **read-only** entitlement checks against activated snapshots ([ADR-007](docs/adr/ADR-007-entitlement-runtime-read-architecture.md)) |
-| Usage Pipeline | Durable ingestion + outbox + idempotent consumer ledger/aggregates + **synchronous quota consume** ([ADR-008](docs/adr/ADR-008-kafka-usage-topology.md)–[ADR-013](docs/adr/ADR-013-contract-aware-quota-enforcement.md)) |
+| Usage Pipeline | Durable ingestion + outbox + idempotent consumer ledger/aggregates + synchronous quota consume + **commercial-period enforcement** ([ADR-008](docs/adr/ADR-008-kafka-usage-topology.md)–[ADR-014](docs/adr/ADR-014-commercial-period-lifecycle.md)) |
 
-Usage Pipeline Phase 6C:
+Usage Pipeline Phase 7:
 
-- `POST /api/v1/usage/consume` → **200** with `ACCEPTED` / `REJECTED` commercial decision (strict LIMITED quota via PostgreSQL)
-- `POST /api/v1/usage/events` → **202** telemetry ingestion — does **not** provide synchronous quota guarantees
-- Authoritative `quota_state` + `quota_consumption`; async `usage_window_aggregate` may lag (Kafka)
-- SUM / COUNT quota; LIMITED + MAX → `UNSUPPORTED_QUOTA_METER_TYPE`
-- Meter → Feature mapping via `MeterDefinition.featureId` (immutable)
-- Contract applicability uses `occurredAt`; windows reuse Phase 6B UTC resolver
-- **No** commercial-period finalization, Streams, billing, or pricing yet
+- Explicit `CommercialPeriod` (`OPEN` → `CLOSING` → `RECONCILING` → `FINALIZED`) separate from event-time usage windows
+- Async consumer: OPEN/CLOSING/NO_PERIOD aggregate normally; RECONCILING/FINALIZED write ledger + `commercial_usage_exception` without aggregate mutation
+- Strict `/usage/consume`: CLOSING/RECONCILING/FINALIZED → `REJECTED` with period reason codes; NO_PERIOD/OPEN preserve Phase 6C
+- HTTP 202 on `/events` unchanged (durable async acceptance — not commercial final acceptance)
+- Manual administrative finalization does **not** claim reconciliation correctness (Phase 8)
+- **No** UsageAdjustment application, billing, or pricing yet
 
 HTTP 202 on `/events` means durably accepted for asynchronous processing — not that quotas/billing changed.
 
@@ -214,11 +213,13 @@ docker compose -f infrastructure/docker/docker-compose.yml config
 
 ## Non-goals (current)
 
-- Remaining quota, commercial-period finalization (`FINALIZED`), pricing, invoices
-- `UsageAdjustment` / late-event rejection
+- Pricing, invoices, credits, billing exports
+- `UsageAdjustment` application / reconciliation rebuild engine (Phase 8)
+- Automated commercial-period schedulers / tenant-specific timezones
 - Kafka Streams / Schema Registry / Avro
 - Cognito / AWS / Kubernetes
 - Redis, MongoDB, Elasticsearch, GraphQL, service mesh
 - AI / LLM components
 - Frontend UI
 - Production-ready / exactly-once claims
+- Claims that Phase 7 finalization proves reconciled aggregate correctness

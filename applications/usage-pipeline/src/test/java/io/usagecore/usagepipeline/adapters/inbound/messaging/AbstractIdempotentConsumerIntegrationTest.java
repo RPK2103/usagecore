@@ -28,7 +28,8 @@ abstract class AbstractIdempotentConsumerIntegrationTest {
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
             .withDatabaseName("usagecore")
             .withUsername("usagecore")
-            .withPassword("usagecore");
+            .withPassword("usagecore")
+            .withCommand("postgres", "-c", "max_connections=200");
 
     static final KafkaContainer KAFKA = new KafkaContainer(DockerImageName.parse("apache/kafka:3.8.1"));
 
@@ -45,6 +46,7 @@ abstract class AbstractIdempotentConsumerIntegrationTest {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
+        registry.add("spring.datasource.hikari.maximum-pool-size", () -> "5");
         registry.add("spring.flyway.enabled", () -> "true");
         registry.add("spring.kafka.bootstrap-servers", KAFKA::getBootstrapServers);
         registry.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri", () -> "http://localhost/unused");

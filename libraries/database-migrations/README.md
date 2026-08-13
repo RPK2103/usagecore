@@ -26,6 +26,7 @@ schema awareness and test migrations. Do not duplicate SQL files under applicati
 | V8 | `meter_definition` + `usage_aggregate` (Phase 6A metering / deterministic aggregation) |
 | V9 | `aggregation_window` on meters + `usage_window_aggregate` + `usage_ledger.is_late` (Phase 6B event-time windows) |
 | V10 | `meter_definition.feature_id` (nullable for legacy unbound rows; NOT VALID check for new/updated rows) + `quota_state` + `quota_consumption` (Phase 6C contract-aware quota). Legacy pre-V10 meters are not auto-mapped to features. |
+| V11 | `commercial_period` (+ overlap exclusion) + `commercial_period_transition` + `commercial_usage_exception` (Phase 7 commercial lifecycle / quarantine evidence). Manual finalization does not prove reconciliation. |
 
 ## Trade-off (v1)
 

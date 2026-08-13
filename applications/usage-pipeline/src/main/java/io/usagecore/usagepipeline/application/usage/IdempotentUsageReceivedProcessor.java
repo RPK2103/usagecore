@@ -4,8 +4,15 @@ import io.usagecore.events.EventEnvelope;
 import io.usagecore.events.EventTypes;
 import io.usagecore.events.EventVersions;
 import io.usagecore.events.usage.UsageReceivedPayload;
+import io.usagecore.usagepipeline.application.commercial.CommercialPeriodReader;
+import io.usagecore.usagepipeline.application.commercial.CommercialPeriodStatus;
+import io.usagecore.usagepipeline.application.commercial.CommercialPeriodView;
+import io.usagecore.usagepipeline.application.commercial.CommercialUsageExceptionReasons;
+import io.usagecore.usagepipeline.application.commercial.CommercialUsageExceptionRecord;
+import io.usagecore.usagepipeline.application.commercial.CommercialUsageExceptionRepository;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,10 +23,11 @@ import org.springframework.transaction.annotation.Transactional;
  * Idempotent consumer processing for {@code UsageReceived}.
  * <p>
  * Deduplicates by Kafka envelope {@code eventId} (not HTTP {@code idempotencyKey}).
- * Claims {@code processed_event}, inserts {@code usage_ledger}, applies lifetime
- * {@code usage_aggregate}, and applies event-time {@code usage_window_aggregate}
- * in one PostgreSQL transaction.
- * Duplicate redelivery is a successful no-op. Delivery remains at-least-once.
+ * Claims {@code processed_event}, inserts {@code usage_ledger}, and either applies
+ * lifetime/window aggregates (OPEN / CLOSING / NO_PERIOD) or records a commercial
+ * usage exception without aggregate mutation (RECONCILING / FINALIZED) — all in one
+ * PostgreSQL transaction. Duplicate redelivery is a successful no-op.
+ * Delivery remains at-least-once. HTTP 202 meaning is unchanged.
  */
 @Service
 public class IdempotentUsageReceivedProcessor implements UsageReceivedProcessor {
@@ -34,6 +42,8 @@ public class IdempotentUsageReceivedProcessor implements UsageReceivedProcessor 
     private final UsageAggregateRepository usageAggregateRepository;
     private final UsageWindowAggregateRepository usageWindowAggregateRepository;
     private final UsageWindowResolver usageWindowResolver;
+    private final CommercialPeriodReader commercialPeriodReader;
+    private final CommercialUsageExceptionRepository commercialUsageExceptionRepository;
     private final Clock clock;
 
     public IdempotentUsageReceivedProcessor(
@@ -43,6 +53,8 @@ public class IdempotentUsageReceivedProcessor implements UsageReceivedProcessor 
             UsageAggregateRepository usageAggregateRepository,
             UsageWindowAggregateRepository usageWindowAggregateRepository,
             UsageWindowResolver usageWindowResolver,
+            CommercialPeriodReader commercialPeriodReader,
+            CommercialUsageExceptionRepository commercialUsageExceptionRepository,
             Clock clock
     ) {
         this.processedEventRepository = processedEventRepository;
@@ -51,6 +63,8 @@ public class IdempotentUsageReceivedProcessor implements UsageReceivedProcessor 
         this.usageAggregateRepository = usageAggregateRepository;
         this.usageWindowAggregateRepository = usageWindowAggregateRepository;
         this.usageWindowResolver = usageWindowResolver;
+        this.commercialPeriodReader = commercialPeriodReader;
+        this.commercialUsageExceptionRepository = commercialUsageExceptionRepository;
         this.clock = clock;
     }
 
@@ -93,6 +107,7 @@ public class IdempotentUsageReceivedProcessor implements UsageReceivedProcessor 
         UsageWindow window = usageWindowResolver.resolve(event.occurredAt(), meter.aggregationWindow());
         boolean late = window.isLate(processedAt);
 
+        // Ledger evidence is always written for claimed events (canonical occurrence history).
         usageLedgerRepository.insert(new UsageLedgerRecord(
                 UUID.randomUUID(),
                 event.eventId(),
@@ -107,6 +122,58 @@ public class IdempotentUsageReceivedProcessor implements UsageReceivedProcessor 
                 processedAt,
                 late
         ));
+
+        Optional<CommercialPeriodView> periodOpt = commercialPeriodReader.findCoveringForShare(
+                event.tenantId(),
+                meter.productId(),
+                event.occurredAt()
+        );
+
+        if (periodOpt.isPresent()) {
+            CommercialPeriodView period = periodOpt.get();
+            if (period.status() == CommercialPeriodStatus.RECONCILING
+                    || period.status() == CommercialPeriodStatus.FINALIZED) {
+                String reason = period.status() == CommercialPeriodStatus.FINALIZED
+                        ? CommercialUsageExceptionReasons.PERIOD_FINALIZED
+                        : CommercialUsageExceptionReasons.PERIOD_RECONCILING;
+                commercialUsageExceptionRepository.insertIfAbsent(new CommercialUsageExceptionRecord(
+                        UUID.randomUUID(),
+                        event.eventId(),
+                        event.tenantId(),
+                        meter.productId(),
+                        meter.meterDefinitionId(),
+                        period.id(),
+                        reason,
+                        event.occurredAt(),
+                        processedAt,
+                        event.correlationId()
+                ));
+                log.info(
+                        "UsageReceived quarantined (commercial period blocks aggregate mutation). "
+                                + "eventId={} tenantId={} commercialPeriodId={} status={} reason={} "
+                                + "productKey={} meterKey={} late={} quantity={} correlationId={}",
+                        event.eventId(),
+                        event.tenantId(),
+                        period.id(),
+                        period.status(),
+                        reason,
+                        payload.productKey(),
+                        payload.meterKey(),
+                        late,
+                        payload.quantity(),
+                        event.correlationId()
+                );
+                return;
+            }
+            // OPEN / CLOSING: apply aggregates (CLOSING still accepts controlled late arrivals).
+            log.debug(
+                    "UsageReceived under commercial period. eventId={} commercialPeriodId={} status={}",
+                    event.eventId(),
+                    period.id(),
+                    period.status()
+            );
+        }
+        // NO_PERIOD: Phase 6 compatibility — lifecycle enforcement inactive for this time.
 
         usageAggregateRepository.applyEvent(
                 event.tenantId(),

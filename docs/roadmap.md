@@ -69,7 +69,7 @@ Milestones are sequential. Each builds only the workloads it needs.
 - Kafka Streams re-evaluated and still deferred
 - No commercial-period finalization, billing, or adjustments yet
 
-## Phase 6C — Contract-aware quota enforcement (current)
+## Phase 6C — Contract-aware quota enforcement
 
 - `POST /api/v1/usage/consume` in Usage Pipeline — synchronous strict quota admission
 - `MeterDefinition.featureId` explicit meter → feature mapping (Flyway V10)
@@ -79,9 +79,18 @@ Milestones are sequential. Each builds only the workloads it needs.
 - `/entitlements/check` remains read-oriented; `/usage/events` remains telemetry without strict quota
 - [ADR-013](adr/ADR-013-contract-aware-quota-enforcement.md)
 
-## Phase 7 — Commercial period lifecycle (later)
+## Phase 7 — Commercial period lifecycle (current)
 
-- Commercial period OPEN/CLOSING/RECONCILING/FINALIZED
+- Explicit `CommercialPeriod` (`OPEN` → `CLOSING` → `RECONCILING` → `FINALIZED`) — Flyway V11
+- Separate from event-time `UsageWindow`; Control Plane admin API + Usage Pipeline JDBC reader
+- Overlap exclusion + atomic transitions; `FOR SHARE` serializes finalization vs usage mutation
+- Async blocked events: ledger + `commercial_usage_exception` (no aggregate mutation)
+- Strict `/usage/consume` rejects CLOSING/RECONCILING/FINALIZED; NO_PERIOD preserves Phase 6C
+- Manual finalization does not prove reconciliation correctness
+- [ADR-014](adr/ADR-014-commercial-period-lifecycle.md)
+
+## Phase 8 — Adjustment / reconciliation (later)
+
 - UsageAdjustment / reconciliation / replay (as evidenced)
 
 ## Phase 7B — Tenancy hardening (optional RLS revisit)
@@ -89,7 +98,7 @@ Milestones are sequential. Each builds only the workloads it needs.
 - Revisit PostgreSQL RLS with proven session handling ([ADR-006](adr/ADR-006-postgresql-rls.md))
 - Expand audit of commercial-state access as needed
 
-## Phase 8+ — Operability
+## Phase 9+ — Operability
 
 - Observability (OpenTelemetry / Prometheus as needed), deploy packaging, load/failure drills
 - No “production-ready” claim without recorded evidence

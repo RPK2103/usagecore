@@ -7,6 +7,12 @@ import io.usagecore.events.EventEnvelope;
 import io.usagecore.events.EventTypes;
 import io.usagecore.events.EventVersions;
 import io.usagecore.events.usage.UsageReceivedPayload;
+import io.usagecore.usagepipeline.application.commercial.CommercialPeriodReader;
+import io.usagecore.usagepipeline.application.commercial.CommercialPeriodStatus;
+import io.usagecore.usagepipeline.application.commercial.CommercialPeriodView;
+import io.usagecore.usagepipeline.application.commercial.CommercialUsageExceptionReasons;
+import io.usagecore.usagepipeline.application.commercial.CommercialUsageExceptionRecord;
+import io.usagecore.usagepipeline.application.commercial.CommercialUsageExceptionRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -271,6 +277,30 @@ class IdempotentUsageReceivedProcessorTest {
                 aggregates,
                 windowAggregates,
                 new UsageWindowResolver(),
+                (tenantId, productId, occurredAt) -> Optional.empty(),
+                new InMemoryCommercialUsageExceptionRepository(),
+                Clock.fixed(FIXED, ZoneOffset.UTC)
+        );
+    }
+
+    private static IdempotentUsageReceivedProcessor newProcessor(
+            ProcessedEventRepository inbox,
+            UsageLedgerRepository ledger,
+            MeterDefinitionLookup meters,
+            UsageAggregateRepository aggregates,
+            UsageWindowAggregateRepository windowAggregates,
+            CommercialPeriodReader periodReader,
+            CommercialUsageExceptionRepository exceptions
+    ) {
+        return new IdempotentUsageReceivedProcessor(
+                inbox,
+                ledger,
+                meters,
+                aggregates,
+                windowAggregates,
+                new UsageWindowResolver(),
+                periodReader,
+                exceptions,
                 Clock.fixed(FIXED, ZoneOffset.UTC)
         );
     }
@@ -512,6 +542,26 @@ class IdempotentUsageReceivedProcessorTest {
 
         long eventCount() {
             return events.get();
+        }
+    }
+
+    static final class InMemoryCommercialUsageExceptionRepository implements CommercialUsageExceptionRepository {
+        private final ConcurrentHashMap<UUID, CommercialUsageExceptionRecord> byEventId = new ConcurrentHashMap<>();
+
+        @Override
+        public Optional<UUID> insertIfAbsent(CommercialUsageExceptionRecord record) {
+            CommercialUsageExceptionRecord previous = byEventId.putIfAbsent(record.eventId(), record);
+            return previous == null ? Optional.of(record.id()) : Optional.empty();
+        }
+
+        @Override
+        public long countByEventId(UUID eventId) {
+            return byEventId.containsKey(eventId) ? 1L : 0L;
+        }
+
+        @Override
+        public long countAll() {
+            return byEventId.size();
         }
     }
 }
