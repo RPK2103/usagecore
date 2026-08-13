@@ -7,9 +7,12 @@ import io.usagecore.controlplane.domain.catalogue.ContractVersion;
 import io.usagecore.controlplane.domain.catalogue.ContractVersionStatus;
 import io.usagecore.controlplane.domain.catalogue.Entitlement;
 import io.usagecore.controlplane.domain.catalogue.EntitlementMode;
+import io.usagecore.controlplane.domain.catalogue.AggregationType;
 import io.usagecore.controlplane.domain.catalogue.Feature;
 import io.usagecore.controlplane.domain.catalogue.FeatureStatus;
 import io.usagecore.controlplane.domain.catalogue.LimitConfiguration;
+import io.usagecore.controlplane.domain.catalogue.MeterDefinition;
+import io.usagecore.controlplane.domain.catalogue.MeterStatus;
 import io.usagecore.controlplane.domain.catalogue.Plan;
 import io.usagecore.controlplane.domain.catalogue.PlanFeature;
 import io.usagecore.controlplane.domain.catalogue.PlanStatus;
@@ -52,6 +55,17 @@ final class CataloguePersistenceMapper {
                 BusinessKey.of(entity.getFeatureKey()),
                 entity.getName(),
                 FeatureStatus.valueOf(entity.getStatus())
+        );
+    }
+
+    static MeterDefinition toDomain(MeterDefinitionJpaEntity entity) {
+        return MeterDefinition.reconstitute(
+                entity.getId(),
+                entity.getProductId(),
+                BusinessKey.of(entity.getMeterKey()),
+                entity.getDisplayName(),
+                AggregationType.valueOf(entity.getAggregationType()),
+                MeterStatus.valueOf(entity.getStatus())
         );
     }
 

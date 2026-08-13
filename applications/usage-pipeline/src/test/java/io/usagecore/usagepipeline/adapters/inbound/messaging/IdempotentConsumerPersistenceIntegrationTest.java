@@ -9,6 +9,7 @@ import io.usagecore.events.usage.UsageReceivedPayload;
 import io.usagecore.usagepipeline.application.usage.UsageLedgerRepository;
 import io.usagecore.usagepipeline.application.usage.UsagePartitionKey;
 import io.usagecore.usagepipeline.application.usage.UsageReceivedProcessor;
+import io.usagecore.usagepipeline.support.MeterDefinitionFixtureSeeder;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -52,10 +53,12 @@ class IdempotentConsumerPersistenceIntegrationTest extends AbstractIdempotentCon
 
     @BeforeEach
     void cleanTables() {
+        jdbcTemplate.update("DELETE FROM usage_aggregate");
         jdbcTemplate.update("DELETE FROM usage_ledger");
         jdbcTemplate.update("DELETE FROM processed_event");
         jdbcTemplate.update("DELETE FROM outbox_event");
         jdbcTemplate.update("DELETE FROM usage_ingestion");
+        new MeterDefinitionFixtureSeeder(jdbcTemplate).ensureDataPilotProductAndMeters();
     }
 
     @Test

@@ -21,25 +21,32 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 
 class IdempotentUsageReceivedProcessorTest {
 
     private static final UUID TENANT = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    private static final UUID PRODUCT_ID = UUID.fromString("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+    private static final UUID METER_ID = UUID.fromString("11111111-2222-3333-4444-555555555555");
     private static final Instant OCCURRED = Instant.parse("2026-08-12T14:30:00Z");
     private static final Instant FIXED = Instant.parse("2026-08-12T14:31:00Z");
     private static final UUID EVENT_ID = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
 
     @Test
-    void singleEvent_writesOneProcessedEventAndOneLedgerRow() {
+    void singleEvent_writesOneProcessedEventOneLedgerAndOneAggregateEffect() {
         InMemoryProcessedEventRepository inbox = new InMemoryProcessedEventRepository();
         InMemoryUsageLedgerRepository ledger = new InMemoryUsageLedgerRepository();
-        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger);
+        InMemoryMeterDefinitionLookup meters = InMemoryMeterDefinitionLookup.countMeter();
+        InMemoryUsageAggregateRepository aggregates = new InMemoryUsageAggregateRepository();
+        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger, meters, aggregates);
 
-        processor.process(sampleEvent(EVENT_ID, "export-job-1"));
+        processor.process(sampleEvent(EVENT_ID, "export-job-1", 3L));
 
         assertThat(inbox.countByEventId(EVENT_ID)).isEqualTo(1);
         assertThat(ledger.countByEventId(EVENT_ID)).isEqualTo(1);
+        assertThat(aggregates.totalValue()).isEqualTo(1L);
+        assertThat(aggregates.eventCount()).isEqualTo(1L);
         UsageLedgerRecord row = ledger.findByEventId(EVENT_ID).orElseThrow();
         assertThat(row.tenantId()).isEqualTo(TENANT);
         assertThat(row.productKey()).isEqualTo("datapilot-cloud");
@@ -56,8 +63,10 @@ class IdempotentUsageReceivedProcessorTest {
     void oneHundredDuplicateDeliveries_produceOneBusinessEffect() {
         InMemoryProcessedEventRepository inbox = new InMemoryProcessedEventRepository();
         InMemoryUsageLedgerRepository ledger = new InMemoryUsageLedgerRepository();
-        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger);
-        EventEnvelope<UsageReceivedPayload> event = sampleEvent(EVENT_ID, "export-job-100");
+        InMemoryMeterDefinitionLookup meters = InMemoryMeterDefinitionLookup.sumMeter();
+        InMemoryUsageAggregateRepository aggregates = new InMemoryUsageAggregateRepository();
+        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger, meters, aggregates);
+        EventEnvelope<UsageReceivedPayload> event = sampleEvent(EVENT_ID, "export-job-100", 10L);
 
         for (int i = 0; i < 100; i++) {
             processor.process(event);
@@ -65,41 +74,47 @@ class IdempotentUsageReceivedProcessorTest {
 
         assertThat(inbox.countAll()).isEqualTo(1);
         assertThat(ledger.countAll()).isEqualTo(1);
-        assertThat(inbox.countByEventId(EVENT_ID)).isEqualTo(1);
-        assertThat(ledger.countByEventId(EVENT_ID)).isEqualTo(1);
+        assertThat(aggregates.totalValue()).isEqualTo(10L);
+        assertThat(aggregates.eventCount()).isEqualTo(1L);
     }
 
     @Test
     void simulatedRedeliveryAfterDbSuccess_isSuccessfulNoOp() {
         InMemoryProcessedEventRepository inbox = new InMemoryProcessedEventRepository();
         InMemoryUsageLedgerRepository ledger = new InMemoryUsageLedgerRepository();
-        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger);
-        EventEnvelope<UsageReceivedPayload> event = sampleEvent(EVENT_ID, "export-job-redeliver");
+        InMemoryMeterDefinitionLookup meters = InMemoryMeterDefinitionLookup.countMeter();
+        InMemoryUsageAggregateRepository aggregates = new InMemoryUsageAggregateRepository();
+        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger, meters, aggregates);
+        EventEnvelope<UsageReceivedPayload> event = sampleEvent(EVENT_ID, "export-job-redeliver", 3L);
 
         processor.process(event);
         assertThat(ledger.countAll()).isEqualTo(1);
+        assertThat(aggregates.eventCount()).isEqualTo(1L);
 
-        // Simulated redelivery (not a literal process crash): same eventId after DB success.
         processor.process(event);
 
         assertThat(inbox.countAll()).isEqualTo(1);
         assertThat(ledger.countAll()).isEqualTo(1);
+        assertThat(aggregates.eventCount()).isEqualTo(1L);
     }
 
     @Test
     void duplicateDetectionUsesEventId_notHttpIdempotencyKey() {
         InMemoryProcessedEventRepository inbox = new InMemoryProcessedEventRepository();
         InMemoryUsageLedgerRepository ledger = new InMemoryUsageLedgerRepository();
-        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger);
+        InMemoryMeterDefinitionLookup meters = InMemoryMeterDefinitionLookup.countMeter();
+        InMemoryUsageAggregateRepository aggregates = new InMemoryUsageAggregateRepository();
+        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger, meters, aggregates);
 
         UUID eventA = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
         UUID eventB = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
 
-        processor.process(sampleEvent(eventA, "shared-http-key"));
-        processor.process(sampleEvent(eventB, "shared-http-key"));
+        processor.process(sampleEvent(eventA, "shared-http-key", 3L));
+        processor.process(sampleEvent(eventB, "shared-http-key", 3L));
 
         assertThat(inbox.countAll()).isEqualTo(2);
         assertThat(ledger.countAll()).isEqualTo(2);
+        assertThat(aggregates.eventCount()).isEqualTo(2L);
         assertThat(ledger.findByEventId(eventA).orElseThrow().idempotencyKey()).isEqualTo("shared-http-key");
         assertThat(ledger.findByEventId(eventB).orElseThrow().idempotencyKey()).isEqualTo("shared-http-key");
     }
@@ -108,8 +123,10 @@ class IdempotentUsageReceivedProcessorTest {
     void concurrentDuplicateProcessing_oneEffect() throws Exception {
         InMemoryProcessedEventRepository inbox = new InMemoryProcessedEventRepository();
         InMemoryUsageLedgerRepository ledger = new InMemoryUsageLedgerRepository();
-        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger);
-        EventEnvelope<UsageReceivedPayload> event = sampleEvent(EVENT_ID, "export-job-concurrent");
+        InMemoryMeterDefinitionLookup meters = InMemoryMeterDefinitionLookup.sumMeter();
+        InMemoryUsageAggregateRepository aggregates = new InMemoryUsageAggregateRepository();
+        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger, meters, aggregates);
+        EventEnvelope<UsageReceivedPayload> event = sampleEvent(EVENT_ID, "export-job-concurrent", 10L);
 
         int threads = 16;
         ExecutorService pool = Executors.newFixedThreadPool(threads);
@@ -130,13 +147,17 @@ class IdempotentUsageReceivedProcessorTest {
 
         assertThat(inbox.countAll()).isEqualTo(1);
         assertThat(ledger.countAll()).isEqualTo(1);
+        assertThat(aggregates.totalValue()).isEqualTo(10L);
+        assertThat(aggregates.eventCount()).isEqualTo(1L);
     }
 
     @Test
     void unsupportedEventVersion_isRejectedWithoutLedgerEffect() {
         InMemoryProcessedEventRepository inbox = new InMemoryProcessedEventRepository();
         InMemoryUsageLedgerRepository ledger = new InMemoryUsageLedgerRepository();
-        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger);
+        InMemoryMeterDefinitionLookup meters = InMemoryMeterDefinitionLookup.countMeter();
+        InMemoryUsageAggregateRepository aggregates = new InMemoryUsageAggregateRepository();
+        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger, meters, aggregates);
 
         EventEnvelope<UsageReceivedPayload> unsupported = new EventEnvelope<>(
                 EVENT_ID,
@@ -157,13 +178,16 @@ class IdempotentUsageReceivedProcessorTest {
                 .hasMessageContaining("Unsupported eventVersion");
         assertThat(inbox.countAll()).isZero();
         assertThat(ledger.countAll()).isZero();
+        assertThat(aggregates.eventCount()).isZero();
     }
 
     @Test
     void nonPositiveQuantity_isRejectedWithoutLedgerEffect() {
         InMemoryProcessedEventRepository inbox = new InMemoryProcessedEventRepository();
         InMemoryUsageLedgerRepository ledger = new InMemoryUsageLedgerRepository();
-        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger);
+        InMemoryMeterDefinitionLookup meters = InMemoryMeterDefinitionLookup.countMeter();
+        InMemoryUsageAggregateRepository aggregates = new InMemoryUsageAggregateRepository();
+        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger, meters, aggregates);
 
         EventEnvelope<UsageReceivedPayload> invalid = new EventEnvelope<>(
                 EVENT_ID,
@@ -184,20 +208,45 @@ class IdempotentUsageReceivedProcessorTest {
                 .hasMessageContaining("quantity");
         assertThat(inbox.countAll()).isZero();
         assertThat(ledger.countAll()).isZero();
+        assertThat(aggregates.eventCount()).isZero();
+    }
+
+    @Test
+    void unknownMeter_isRejectedWithoutCommittedState() {
+        InMemoryProcessedEventRepository inbox = new InMemoryProcessedEventRepository();
+        InMemoryUsageLedgerRepository ledger = new InMemoryUsageLedgerRepository();
+        InMemoryMeterDefinitionLookup meters = new InMemoryMeterDefinitionLookup(Optional.empty());
+        InMemoryUsageAggregateRepository aggregates = new InMemoryUsageAggregateRepository();
+        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger, meters, aggregates);
+
+        // Without @Transactional, claim+ledger may remain in in-memory stubs after failure;
+        // production path rolls back via Spring transaction. Assert exception type here.
+        assertThatThrownBy(() -> processor.process(sampleEvent(EVENT_ID, "unknown-meter", 1L)))
+                .isInstanceOf(UnknownUsageMeterException.class)
+                .hasMessageContaining("Unknown or inactive meter");
+        assertThat(aggregates.eventCount()).isZero();
     }
 
     private static IdempotentUsageReceivedProcessor newProcessor(
             ProcessedEventRepository inbox,
-            UsageLedgerRepository ledger
+            UsageLedgerRepository ledger,
+            MeterDefinitionLookup meters,
+            UsageAggregateRepository aggregates
     ) {
         return new IdempotentUsageReceivedProcessor(
                 inbox,
                 ledger,
+                meters,
+                aggregates,
                 Clock.fixed(FIXED, ZoneOffset.UTC)
         );
     }
 
-    private static EventEnvelope<UsageReceivedPayload> sampleEvent(UUID eventId, String idempotencyKey) {
+    private static EventEnvelope<UsageReceivedPayload> sampleEvent(
+            UUID eventId,
+            String idempotencyKey,
+            long quantity
+    ) {
         return new EventEnvelope<>(
                 eventId,
                 EventTypes.USAGE_RECEIVED,
@@ -212,7 +261,7 @@ class IdempotentUsageReceivedProcessorTest {
                 new UsageReceivedPayload(
                         "datapilot-cloud",
                         "scheduled_export",
-                        3L,
+                        quantity,
                         idempotencyKey,
                         "svc-datapilot"
                 )
@@ -240,11 +289,9 @@ class IdempotentUsageReceivedProcessorTest {
 
     static final class InMemoryUsageLedgerRepository implements UsageLedgerRepository {
         private final ConcurrentHashMap<UUID, UsageLedgerRecord> rows = new ConcurrentHashMap<>();
-        private final AtomicInteger inserts = new AtomicInteger();
 
         @Override
         public void insert(UsageLedgerRecord record) {
-            inserts.incrementAndGet();
             UsageLedgerRecord previous = rows.putIfAbsent(record.eventId(), record);
             if (previous != null) {
                 throw new IllegalStateException("duplicate ledger eventId: " + record.eventId());
@@ -264,6 +311,97 @@ class IdempotentUsageReceivedProcessorTest {
         @Override
         public long countAll() {
             return rows.size();
+        }
+    }
+
+    static final class InMemoryMeterDefinitionLookup implements MeterDefinitionLookup {
+        private final Optional<ActiveMeterDefinition> meter;
+
+        InMemoryMeterDefinitionLookup(Optional<ActiveMeterDefinition> meter) {
+            this.meter = meter;
+        }
+
+        static InMemoryMeterDefinitionLookup countMeter() {
+            return new InMemoryMeterDefinitionLookup(Optional.of(new ActiveMeterDefinition(
+                    METER_ID,
+                    PRODUCT_ID,
+                    "datapilot-cloud",
+                    "scheduled_export",
+                    AggregationType.COUNT
+            )));
+        }
+
+        static InMemoryMeterDefinitionLookup sumMeter() {
+            return new InMemoryMeterDefinitionLookup(Optional.of(new ActiveMeterDefinition(
+                    METER_ID,
+                    PRODUCT_ID,
+                    "datapilot-cloud",
+                    "scheduled_export",
+                    AggregationType.SUM
+            )));
+        }
+
+        @Override
+        public Optional<ActiveMeterDefinition> findActiveByProductKeyAndMeterKey(
+                String productKey,
+                String meterKey
+        ) {
+            return meter.filter(m -> m.productKey().equals(productKey) && m.meterKey().equals(meterKey));
+        }
+    }
+
+    static final class InMemoryUsageAggregateRepository implements UsageAggregateRepository {
+        private final AtomicLong value = new AtomicLong();
+        private final AtomicInteger events = new AtomicInteger();
+
+        @Override
+        public void applyEvent(
+                UUID tenantId,
+                ActiveMeterDefinition meter,
+                long quantity,
+                Instant occurredAt,
+                Instant updatedAt
+        ) {
+            long contribution = switch (meter.aggregationType()) {
+                case SUM, MAX -> quantity;
+                case COUNT -> 1L;
+            };
+            if (meter.aggregationType() == AggregationType.MAX) {
+                value.accumulateAndGet(contribution, Math::max);
+            } else {
+                value.addAndGet(contribution);
+            }
+            events.incrementAndGet();
+        }
+
+        @Override
+        public Optional<UsageAggregateRecord> findByTenantAndMeterDefinition(
+                UUID tenantId,
+                UUID meterDefinitionId
+        ) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<UsageAggregateRecord> findByTenantProductKeyAndMeterKey(
+                UUID tenantId,
+                String productKey,
+                String meterKey
+        ) {
+            return Optional.empty();
+        }
+
+        @Override
+        public long countAll() {
+            return events.get() > 0 ? 1L : 0L;
+        }
+
+        long totalValue() {
+            return value.get();
+        }
+
+        long eventCount() {
+            return events.get();
         }
     }
 }

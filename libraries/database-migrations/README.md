@@ -23,6 +23,7 @@ schema awareness and test migrations. Do not duplicate SQL files under applicati
 | V5 | `entitlement_decision` append-oriented decision evidence |
 | V6 | `usage_ingestion` + `outbox_event` (Phase 5A durable ingestion / transactional outbox) |
 | V7 | `processed_event` + `usage_ledger` (Phase 5B consumer inbox / canonical usage ledger) |
+| V8 | `meter_definition` + `usage_aggregate` (Phase 6A metering / deterministic aggregation) |
 
 ## Trade-off (v1)
 

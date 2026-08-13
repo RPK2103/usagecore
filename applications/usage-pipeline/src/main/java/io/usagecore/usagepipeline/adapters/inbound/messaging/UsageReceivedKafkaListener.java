@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.usagecore.events.EventEnvelope;
 import io.usagecore.events.usage.UsageReceivedPayload;
 import io.usagecore.usagepipeline.application.usage.InvalidUsageEventException;
+import io.usagecore.usagepipeline.application.usage.UnknownUsageMeterException;
 import io.usagecore.usagepipeline.application.usage.UnsupportedUsageEventException;
 import io.usagecore.usagepipeline.application.usage.UsageReceivedProcessor;
 import io.usagecore.usagepipeline.configuration.KafkaProperties;
@@ -77,7 +78,7 @@ public class UsageReceivedKafkaListener {
 
         try {
             usageReceivedProcessor.process(event);
-        } catch (UnsupportedUsageEventException | InvalidUsageEventException ex) {
+        } catch (UnsupportedUsageEventException | InvalidUsageEventException | UnknownUsageMeterException ex) {
             throw ex;
         } catch (RuntimeException ex) {
             log.error(

@@ -1,5 +1,6 @@
 package io.usagecore.usagepipeline.adapters.inbound.http.usage;
 
+import io.usagecore.usagepipeline.application.usage.UsageAggregateQueryService;
 import io.usagecore.usagepipeline.application.usage.UsageIngestionApplicationService;
 import io.usagecore.usagepipeline.application.usage.UsageIngestionResult;
 import jakarta.validation.Valid;
@@ -7,6 +8,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,9 +20,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class UsageController {
 
     private final UsageIngestionApplicationService usageIngestionApplicationService;
+    private final UsageAggregateQueryService usageAggregateQueryService;
 
-    public UsageController(UsageIngestionApplicationService usageIngestionApplicationService) {
+    public UsageController(
+            UsageIngestionApplicationService usageIngestionApplicationService,
+            UsageAggregateQueryService usageAggregateQueryService
+    ) {
         this.usageIngestionApplicationService = usageIngestionApplicationService;
+        this.usageAggregateQueryService = usageAggregateQueryService;
     }
 
     /**
@@ -44,5 +52,23 @@ public class UsageController {
                         result.correlationId(),
                         result.idempotentReplay()
                 ));
+    }
+
+    /**
+     * Tenant-scoped read of derived Phase 6A aggregate state.
+     * Tenant identity comes only from the JWT — never from the path or body.
+     */
+    @GetMapping("/aggregates/{productKey}/{meterKey}")
+    @PreAuthorize("hasAnyRole('DEVELOPER','TENANT_ADMIN','AUDITOR','BILLING_OPERATOR')")
+    public ResponseEntity<UsageAggregateResponse> getAggregate(
+            @PathVariable String productKey,
+            @PathVariable String meterKey
+    ) {
+        return ResponseEntity.ok(
+                UsageAggregateResponse.from(
+                        productKey,
+                        usageAggregateQueryService.requireAggregate(productKey, meterKey)
+                )
+        );
     }
 }

@@ -2,6 +2,7 @@ package io.usagecore.usagepipeline.adapters.inbound.http.error;
 
 import io.usagecore.usagepipeline.application.security.AuthorizationDeniedException;
 import io.usagecore.usagepipeline.application.usage.IdempotencyConflictException;
+import io.usagecore.usagepipeline.application.usage.UsageAggregateNotFoundException;
 import io.usagecore.usagepipeline.application.usage.UsagePublicationException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Clock;
@@ -79,6 +80,14 @@ public class GlobalExceptionHandler {
                 "Idempotency key already used with a different usage payload",
                 request
         );
+    }
+
+    @ExceptionHandler(UsageAggregateNotFoundException.class)
+    public ResponseEntity<ApiError> handleAggregateNotFound(
+            UsageAggregateNotFoundException exception,
+            HttpServletRequest request
+    ) {
+        return build(HttpStatus.NOT_FOUND, ApiErrorCodes.RESOURCE_NOT_FOUND, exception.getMessage(), request);
     }
 
     @ExceptionHandler(UsagePublicationException.class)

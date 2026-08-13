@@ -1,6 +1,7 @@
 package io.usagecore.controlplane.adapters.inbound.http.catalogue;
 
 import io.usagecore.controlplane.application.catalogue.FeatureApplicationService;
+import io.usagecore.controlplane.application.catalogue.MeterDefinitionApplicationService;
 import io.usagecore.controlplane.application.catalogue.ProductApplicationService;
 import io.usagecore.controlplane.domain.catalogue.BusinessKey;
 import jakarta.validation.Valid;
@@ -21,13 +22,16 @@ public class ProductController {
 
     private final ProductApplicationService productApplicationService;
     private final FeatureApplicationService featureApplicationService;
+    private final MeterDefinitionApplicationService meterDefinitionApplicationService;
 
     public ProductController(
             ProductApplicationService productApplicationService,
-            FeatureApplicationService featureApplicationService
+            FeatureApplicationService featureApplicationService,
+            MeterDefinitionApplicationService meterDefinitionApplicationService
     ) {
         this.productApplicationService = productApplicationService;
         this.featureApplicationService = featureApplicationService;
+        this.meterDefinitionApplicationService = meterDefinitionApplicationService;
     }
 
     @PostMapping
@@ -72,6 +76,34 @@ public class ProductController {
     ) {
         return ResponseEntity.ok(
                 FeatureResponse.from(featureApplicationService.requireFeatureForProduct(productId, featureId))
+        );
+    }
+
+    @PostMapping("/{productId}/meters")
+    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    public ResponseEntity<MeterResponse> createMeter(
+            @PathVariable UUID productId,
+            @Valid @RequestBody CreateMeterRequest request
+    ) {
+        MeterResponse body = MeterResponse.from(
+                meterDefinitionApplicationService.createMeter(
+                        productId,
+                        BusinessKey.of(request.meterKey()),
+                        request.displayName(),
+                        request.aggregationType()
+                )
+        );
+        return ResponseEntity.status(HttpStatus.CREATED).body(body);
+    }
+
+    @GetMapping("/{productId}/meters/{meterId}")
+    @PreAuthorize("hasAnyRole('PLATFORM_ADMIN','CONTRACT_MANAGER','TENANT_ADMIN','AUDITOR')")
+    public ResponseEntity<MeterResponse> getMeter(
+            @PathVariable UUID productId,
+            @PathVariable UUID meterId
+    ) {
+        return ResponseEntity.ok(
+                MeterResponse.from(meterDefinitionApplicationService.requireMeterForProduct(productId, meterId))
         );
     }
 }

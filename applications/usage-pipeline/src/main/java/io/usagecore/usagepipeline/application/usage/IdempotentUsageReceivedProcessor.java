@@ -16,9 +16,10 @@ import org.springframework.transaction.annotation.Transactional;
  * Idempotent consumer processing for {@code UsageReceived}.
  * <p>
  * Deduplicates by Kafka envelope {@code eventId} (not HTTP {@code idempotencyKey}).
- * Claims {@code processed_event} and inserts {@code usage_ledger} in one PostgreSQL transaction.
- * Duplicate redelivery is a successful no-op. Delivery remains at-least-once; this is not
- * exactly-once transport.
+ * Claims {@code processed_event}, inserts {@code usage_ledger}, and applies
+ * {@code usage_aggregate} in one PostgreSQL transaction.
+ * Duplicate redelivery is a successful no-op (aggregate not applied again).
+ * Delivery remains at-least-once; this is not exactly-once transport.
  */
 @Service
 public class IdempotentUsageReceivedProcessor implements UsageReceivedProcessor {
@@ -29,15 +30,21 @@ public class IdempotentUsageReceivedProcessor implements UsageReceivedProcessor 
 
     private final ProcessedEventRepository processedEventRepository;
     private final UsageLedgerRepository usageLedgerRepository;
+    private final MeterDefinitionLookup meterDefinitionLookup;
+    private final UsageAggregateRepository usageAggregateRepository;
     private final Clock clock;
 
     public IdempotentUsageReceivedProcessor(
             ProcessedEventRepository processedEventRepository,
             UsageLedgerRepository usageLedgerRepository,
+            MeterDefinitionLookup meterDefinitionLookup,
+            UsageAggregateRepository usageAggregateRepository,
             Clock clock
     ) {
         this.processedEventRepository = processedEventRepository;
         this.usageLedgerRepository = usageLedgerRepository;
+        this.meterDefinitionLookup = meterDefinitionLookup;
+        this.usageAggregateRepository = usageAggregateRepository;
         this.clock = clock;
     }
 
@@ -82,13 +89,31 @@ public class IdempotentUsageReceivedProcessor implements UsageReceivedProcessor 
                 processedAt
         ));
 
+        ActiveMeterDefinition meter = meterDefinitionLookup
+                .findActiveByProductKeyAndMeterKey(payload.productKey(), payload.meterKey())
+                .orElseThrow(() -> new UnknownUsageMeterException(
+                        "Unknown or inactive meter: productKey="
+                                + payload.productKey()
+                                + " meterKey="
+                                + payload.meterKey()
+                ));
+
+        usageAggregateRepository.applyEvent(
+                event.tenantId(),
+                meter,
+                payload.quantity(),
+                event.occurredAt(),
+                processedAt
+        );
+
         log.info(
-                "UsageReceived recorded to ledger. eventId={} tenantId={} productKey={} meterKey={} "
-                        + "quantity={} idempotencyKey={} correlationId={}",
+                "UsageReceived recorded to ledger and aggregate. eventId={} tenantId={} productKey={} "
+                        + "meterKey={} aggregationType={} quantity={} idempotencyKey={} correlationId={}",
                 event.eventId(),
                 event.tenantId(),
                 payload.productKey(),
                 payload.meterKey(),
+                meter.aggregationType(),
                 payload.quantity(),
                 payload.idempotencyKey(),
                 event.correlationId()

@@ -1,6 +1,7 @@
 package io.usagecore.usagepipeline.configuration;
 
 import io.usagecore.usagepipeline.application.usage.InvalidUsageEventException;
+import io.usagecore.usagepipeline.application.usage.UnknownUsageMeterException;
 import io.usagecore.usagepipeline.application.usage.UnsupportedUsageEventException;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.common.TopicPartition;
@@ -64,7 +65,8 @@ public class KafkaConfiguration {
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(recoverer, backOff);
         errorHandler.addNotRetryableExceptions(
                 UnsupportedUsageEventException.class,
-                InvalidUsageEventException.class
+                InvalidUsageEventException.class,
+                UnknownUsageMeterException.class
         );
         errorHandler.setRetryListeners((record, ex, deliveryAttempt) ->
                 log.warn(

@@ -16,6 +16,7 @@ import io.usagecore.usagepipeline.application.outbox.OutboxPublisherApplicationS
 import io.usagecore.usagepipeline.application.usage.UsageLedgerRecord;
 import io.usagecore.usagepipeline.application.usage.UsageLedgerRepository;
 import io.usagecore.usagepipeline.application.usage.UsagePartitionKey;
+import io.usagecore.usagepipeline.support.MeterDefinitionFixtureSeeder;
 import io.usagecore.usagepipeline.support.TestJwtSupport;
 import java.time.Duration;
 import java.time.Instant;
@@ -73,10 +74,12 @@ class IdempotentConsumerKafkaIntegrationTest extends AbstractIdempotentConsumerI
 
     @BeforeEach
     void cleanTables() {
+        jdbcTemplate.update("DELETE FROM usage_aggregate");
         jdbcTemplate.update("DELETE FROM usage_ledger");
         jdbcTemplate.update("DELETE FROM processed_event");
         jdbcTemplate.update("DELETE FROM outbox_event");
         jdbcTemplate.update("DELETE FROM usage_ingestion");
+        new MeterDefinitionFixtureSeeder(jdbcTemplate).ensureDataPilotProductAndMeters();
     }
 
     @Test

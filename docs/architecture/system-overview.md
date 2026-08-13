@@ -6,9 +6,9 @@ UsageCore is a multi-tenant entitlement and usage platform. PostgreSQL is the tr
 
 | Workload | Responsibility |
 | --- | --- |
-| control-plane | Catalog and commercial configuration: Tenant, Product, Feature, Plan, Contract, ContractVersion activation; **production Flyway owner** |
+| control-plane | Catalog and commercial configuration: Tenant, Product, Feature, Plan, MeterDefinition, Contract, ContractVersion activation; **production Flyway owner** |
 | entitlement-runtime | Authenticated entitlement checks against activated contract snapshots; decision evidence; no Control Plane compile-time dependency ([ADR-007](../adr/ADR-007-entitlement-runtime-read-architecture.md)) |
-| usage-pipeline | Durable usage ingestion, transactional outbox, idempotent consumer ledger; aggregation/reconciliation later; no Control Plane / Entitlement Runtime compile-time dependency ([ADR-008](../adr/ADR-008-kafka-usage-topology.md), [ADR-009](../adr/ADR-009-transactional-outbox-ingestion-idempotency.md), [ADR-010](../adr/ADR-010-consumer-inbox-and-idempotent-processing.md)) |
+| usage-pipeline | Durable usage ingestion, transactional outbox, idempotent consumer ledger + deterministic aggregates; no Control Plane / Entitlement Runtime compile-time dependency ([ADR-008](../adr/ADR-008-kafka-usage-topology.md), [ADR-009](../adr/ADR-009-transactional-outbox-ingestion-idempotency.md), [ADR-010](../adr/ADR-010-consumer-inbox-and-idempotent-processing.md), [ADR-011](../adr/ADR-011-metering-and-aggregation.md)) |
 
 Build only workloads required by the active milestone. No frontend in this repo.
 
@@ -50,10 +50,12 @@ Usage ingestion never accepts `tenantId` from the request body; tenant comes onl
 - Activated `ContractVersion` state (and entitlement snapshots) is immutable ([ADR-003](../adr/ADR-003-contract-historical-state.md)).
 - Effective time uses half-open intervals `[effectiveFrom, effectiveUntil)` in UTC-compatible timestamps ([ADR-005](../adr/ADR-005-temporal-model.md)).
 
-## Usage pipeline (Phase 5B)
+## Usage pipeline (Phase 6A)
 
 - Topic: `usagecore.usage.received.v1` (DLQ: `usagecore.usage.received.v1.dlq`)
 - Partition key: `tenantId|productKey|meterKey` (ordering within partition; hot-partition trade-off documented in ADR-008)
-- HTTP 202 = durable PostgreSQL acceptance (ingestion + outbox) — not aggregation or quota update
-- Consumer: `processed_event` inbox + immutable `usage_ledger` keyed by `eventId` ([ADR-010](../adr/ADR-010-consumer-inbox-and-idempotent-processing.md))
-- Delivery remains at-least-once; duplicate redelivery is a successful no-op
+- HTTP 202 = durable PostgreSQL acceptance (ingestion + outbox) — not quota/billing update
+- Consumer: `processed_event` inbox + immutable `usage_ledger` + derived `usage_aggregate` keyed by `eventId` ([ADR-010](../adr/ADR-010-consumer-inbox-and-idempotent-processing.md), [ADR-011](../adr/ADR-011-metering-and-aggregation.md))
+- Aggregation from Control Plane `MeterDefinition` (`SUM` / `COUNT` / `MAX`) via shared-schema JDBC read
+- Delivery remains at-least-once; duplicate redelivery is a successful no-op (aggregate not reapplied)
+- Kafka Streams deferred until windows/late-event needs justify it

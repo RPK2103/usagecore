@@ -45,16 +45,25 @@ Milestones are sequential. Each builds only the workloads it needs.
 - Asynchronous outbox publisher (`FOR UPDATE SKIP LOCKED`); at-least-once to Kafka
 - [ADR-009](adr/ADR-009-transactional-outbox-ingestion-idempotency.md)
 
-## Phase 5B — Consumer correctness (current)
+## Phase 5B — Consumer correctness
 
 - Consumer inbox (`processed_event`) + canonical `usage_ledger` (Flyway V7)
 - Idempotent Kafka consumer keyed by `eventId`; duplicate redelivery is a successful no-op
 - Bounded retry + DLQ `usagecore.usage.received.v1.dlq` for poison/non-retryable events
 - [ADR-010](adr/ADR-010-consumer-inbox-and-idempotent-processing.md)
 
-## Phase 6 — Metering and aggregation
+## Phase 6A — Meter definitions + deterministic aggregation (current)
 
-- MeterDefinition, usage aggregates, event-time windows / late events
+- Control Plane `MeterDefinition` catalogue (`SUM` / `COUNT` / `MAX`) — Flyway V8
+- Consumer transaction extended: inbox + ledger + PostgreSQL atomic `usage_aggregate` UPSERT
+- Usage Pipeline JDBC meter lookup (no Control Plane compile-time dependency)
+- Unknown/inactive meter → non-retryable → DLQ; no silent meter creation
+- Kafka Streams deferred ([ADR-011](adr/ADR-011-metering-and-aggregation.md))
+- No billing periods, windows, quota, or pricing yet
+
+## Phase 6B+ — Windows / quota (later)
+
+- Event-time windows / late events
 - Remaining quota against entitlements (as evidenced)
 
 ## Phase 7 — Tenancy hardening (optional RLS revisit)
