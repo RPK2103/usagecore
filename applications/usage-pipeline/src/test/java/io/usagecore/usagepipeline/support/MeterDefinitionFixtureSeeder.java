@@ -6,7 +6,7 @@ import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
- * Seeds DataPilot Cloud product + Phase 6A demo meters for usage-pipeline tests.
+ * Seeds DataPilot Cloud product + Phase 6A/6B demo meters for usage-pipeline tests.
  */
 public final class MeterDefinitionFixtureSeeder {
 
@@ -40,9 +40,9 @@ public final class MeterDefinitionFixtureSeeder {
                 UUID.class,
                 PRODUCT_KEY
         );
-        ensureMeter(resolvedProductId, METER_API_REQUESTS, "API Requests", "SUM", now);
-        ensureMeter(resolvedProductId, METER_SCHEDULED_EXPORT, "Scheduled Export", "COUNT", now);
-        ensureMeter(resolvedProductId, METER_WORKSPACE_SIZE, "Workspace Size", "MAX", now);
+        ensureMeter(resolvedProductId, METER_API_REQUESTS, "API Requests", "SUM", "MONTHLY", now);
+        ensureMeter(resolvedProductId, METER_SCHEDULED_EXPORT, "Scheduled Export", "COUNT", "MONTHLY", now);
+        ensureMeter(resolvedProductId, METER_WORKSPACE_SIZE, "Workspace Size", "MAX", "MONTHLY", now);
         return resolvedProductId;
     }
 
@@ -52,8 +52,9 @@ public final class MeterDefinitionFixtureSeeder {
         jdbc.update(
                 """
                 INSERT INTO meter_definition (
-                    id, product_id, meter_key, display_name, aggregation_type, status, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, 'SUM', 'INACTIVE', ?, ?)
+                    id, product_id, meter_key, display_name, aggregation_type, aggregation_window,
+                    status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 'SUM', 'MONTHLY', 'INACTIVE', ?, ?)
                 ON CONFLICT (product_id, meter_key) DO UPDATE SET status = 'INACTIVE', updated_at = EXCLUDED.updated_at
                 """,
                 UUID.nameUUIDFromBytes(("inactive-" + meterKey).getBytes()),
@@ -83,13 +84,15 @@ public final class MeterDefinitionFixtureSeeder {
             String meterKey,
             String displayName,
             String aggregationType,
+            String aggregationWindow,
             Instant now
     ) {
         jdbc.update(
                 """
                 INSERT INTO meter_definition (
-                    id, product_id, meter_key, display_name, aggregation_type, status, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?, ?)
+                    id, product_id, meter_key, display_name, aggregation_type, aggregation_window,
+                    status, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?)
                 ON CONFLICT (product_id, meter_key) DO NOTHING
                 """,
                 UUID.nameUUIDFromBytes((PRODUCT_KEY + "|" + meterKey).getBytes()),
@@ -97,6 +100,7 @@ public final class MeterDefinitionFixtureSeeder {
                 meterKey,
                 displayName,
                 aggregationType,
+                aggregationWindow,
                 Timestamp.from(now),
                 Timestamp.from(now)
         );

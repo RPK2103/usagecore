@@ -30,7 +30,7 @@ Shared libraries:
 - [`libraries/database-migrations`](libraries/database-migrations/README.md) — Flyway SQL (Control Plane owns production migrations)
 - [`libraries/event-contracts`](libraries/event-contracts) — versioned Kafka transport envelopes only
 
-## Phase 6A status
+## Phase 6B status
 
 Three independently deployable applications:
 
@@ -38,18 +38,19 @@ Three independently deployable applications:
 | --- | --- |
 | Control Plane | Catalog / commercial configuration (including MeterDefinition); production Flyway owner |
 | Entitlement Runtime | Authenticated entitlement checks against activated snapshots ([ADR-007](docs/adr/ADR-007-entitlement-runtime-read-architecture.md)) |
-| Usage Pipeline | Durable ingestion + outbox + idempotent consumer ledger + deterministic aggregation ([ADR-008](docs/adr/ADR-008-kafka-usage-topology.md), [ADR-009](docs/adr/ADR-009-transactional-outbox-ingestion-idempotency.md), [ADR-010](docs/adr/ADR-010-consumer-inbox-and-idempotent-processing.md), [ADR-011](docs/adr/ADR-011-metering-and-aggregation.md)) |
+| Usage Pipeline | Durable ingestion + outbox + idempotent consumer ledger + lifetime + event-time window aggregation ([ADR-008](docs/adr/ADR-008-kafka-usage-topology.md), [ADR-009](docs/adr/ADR-009-transactional-outbox-ingestion-idempotency.md), [ADR-010](docs/adr/ADR-010-consumer-inbox-and-idempotent-processing.md), [ADR-011](docs/adr/ADR-011-metering-and-aggregation.md), [ADR-012](docs/adr/ADR-012-event-time-and-windowed-metering.md)) |
 
-Usage Pipeline Phase 6A:
+Usage Pipeline Phase 6B:
 
 - `POST /api/v1/usage/events` → **202** after PostgreSQL commit of `usage_ingestion` + `outbox_event`
 - Asynchronous outbox publisher → topic `usagecore.usage.received.v1` (at-least-once)
-- Consumer inbox (`processed_event`) + canonical `usage_ledger` + derived `usage_aggregate` keyed by Kafka `eventId`
-- Aggregation strategies from Control Plane `MeterDefinition`: `SUM`, `COUNT`, `MAX`
-- Duplicate Kafka redelivery → successful no-op (one ledger effect, one aggregate effect)
+- Consumer inbox (`processed_event`) + canonical `usage_ledger` + lifetime `usage_aggregate` + event-time `usage_window_aggregate`
+- Aggregation from Control Plane `MeterDefinition`: `SUM` / `COUNT` / `MAX` with UTC `MONTHLY` / `DAILY` windows
+- Window ownership uses `occurredAt`; late events are accepted, marked `is_late`, and update historical windows
+- Duplicate Kafka redelivery → successful no-op (one ledger effect, one lifetime + one window contribution)
 - Bounded retry; poison/non-retryable (including unknown meter) → `usagecore.usage.received.v1.dlq`
-- Optional read: `GET /api/v1/usage/aggregates/{productKey}/{meterKey}` (tenant from JWT)
-- **No** billing periods, windows, Streams, quota, or pricing yet
+- Reads: `GET /api/v1/usage/aggregates/{productKey}/{meterKey}` and `.../windows/current` (tenant from JWT)
+- **No** commercial-period finalization, Streams, quota, or pricing yet
 
 HTTP 202 means durably accepted for asynchronous processing — not that quotas/billing changed.
 
@@ -213,7 +214,8 @@ docker compose -f infrastructure/docker/docker-compose.yml config
 
 ## Non-goals (current)
 
-- Remaining quota, billing periods, windows / late events, pricing
+- Remaining quota, commercial-period finalization (`FINALIZED`), pricing, invoices
+- `UsageAdjustment` / late-event rejection
 - Kafka Streams / Schema Registry / Avro
 - Cognito / AWS / Kubernetes
 - Redis, MongoDB, Elasticsearch, GraphQL, service mesh

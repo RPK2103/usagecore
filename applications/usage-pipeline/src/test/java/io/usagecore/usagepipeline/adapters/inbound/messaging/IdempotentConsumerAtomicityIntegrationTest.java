@@ -11,6 +11,7 @@ import io.usagecore.usagepipeline.application.usage.UsageLedgerRecord;
 import io.usagecore.usagepipeline.application.usage.UsageLedgerRepository;
 import io.usagecore.usagepipeline.application.usage.UsagePartitionKey;
 import io.usagecore.usagepipeline.application.usage.UsageReceivedProcessor;
+import io.usagecore.usagepipeline.support.MeterDefinitionFixtureSeeder;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,6 +28,8 @@ import org.springframework.test.context.DynamicPropertySource;
 
 /**
  * Proves inbox claim + ledger insert are one transaction: ledger failure rolls back the claim.
+ * Meter resolution occurs before ledger insert (needed for late classification), so fixtures
+ * must seed an ACTIVE meter for the failure path to reach ledger persistence.
  * <p>
  * Kafka listener is disabled: this context installs a failing ledger {@code @Primary} bean and
  * shares Testcontainers Postgres/Kafka with sibling classes; an active consumer would race them.
@@ -52,9 +55,11 @@ class IdempotentConsumerAtomicityIntegrationTest extends AbstractIdempotentConsu
 
     @BeforeEach
     void cleanTables() {
+        jdbcTemplate.update("DELETE FROM usage_window_aggregate");
         jdbcTemplate.update("DELETE FROM usage_aggregate");
         jdbcTemplate.update("DELETE FROM usage_ledger");
         jdbcTemplate.update("DELETE FROM processed_event");
+        new MeterDefinitionFixtureSeeder(jdbcTemplate).ensureDataPilotProductAndMeters();
     }
 
     @Test

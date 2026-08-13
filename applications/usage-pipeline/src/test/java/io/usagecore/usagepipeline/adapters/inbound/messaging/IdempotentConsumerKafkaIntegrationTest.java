@@ -74,6 +74,7 @@ class IdempotentConsumerKafkaIntegrationTest extends AbstractIdempotentConsumerI
 
     @BeforeEach
     void cleanTables() {
+        jdbcTemplate.update("DELETE FROM usage_window_aggregate");
         jdbcTemplate.update("DELETE FROM usage_aggregate");
         jdbcTemplate.update("DELETE FROM usage_ledger");
         jdbcTemplate.update("DELETE FROM processed_event");

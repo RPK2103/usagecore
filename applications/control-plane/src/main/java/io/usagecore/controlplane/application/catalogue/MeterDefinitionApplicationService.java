@@ -1,6 +1,7 @@
 package io.usagecore.controlplane.application.catalogue;
 
 import io.usagecore.controlplane.domain.catalogue.AggregationType;
+import io.usagecore.controlplane.domain.catalogue.AggregationWindow;
 import io.usagecore.controlplane.domain.catalogue.BusinessKey;
 import io.usagecore.controlplane.domain.catalogue.MeterDefinition;
 import io.usagecore.controlplane.domain.catalogue.Product;
@@ -28,10 +29,12 @@ public class MeterDefinitionApplicationService {
             UUID productId,
             BusinessKey meterKey,
             String displayName,
-            AggregationType aggregationType
+            AggregationType aggregationType,
+            AggregationWindow aggregationWindow
     ) {
         Objects.requireNonNull(meterKey, "meterKey");
         Objects.requireNonNull(aggregationType, "aggregationType");
+        Objects.requireNonNull(aggregationWindow, "aggregationWindow");
         Product product = requireProduct(productId);
         if (meterDefinitionRepository.existsByProductIdAndMeterKey(product.id(), meterKey.value())) {
             throw new DuplicateResourceException(
@@ -39,7 +42,7 @@ public class MeterDefinitionApplicationService {
             );
         }
         return meterDefinitionRepository.save(
-                MeterDefinition.create(product, meterKey, displayName, aggregationType)
+                MeterDefinition.create(product, meterKey, displayName, aggregationType, aggregationWindow)
         );
     }
 

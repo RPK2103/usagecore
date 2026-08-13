@@ -16,10 +16,10 @@ import org.springframework.transaction.annotation.Transactional;
  * Idempotent consumer processing for {@code UsageReceived}.
  * <p>
  * Deduplicates by Kafka envelope {@code eventId} (not HTTP {@code idempotencyKey}).
- * Claims {@code processed_event}, inserts {@code usage_ledger}, and applies
- * {@code usage_aggregate} in one PostgreSQL transaction.
- * Duplicate redelivery is a successful no-op (aggregate not applied again).
- * Delivery remains at-least-once; this is not exactly-once transport.
+ * Claims {@code processed_event}, inserts {@code usage_ledger}, applies lifetime
+ * {@code usage_aggregate}, and applies event-time {@code usage_window_aggregate}
+ * in one PostgreSQL transaction.
+ * Duplicate redelivery is a successful no-op. Delivery remains at-least-once.
  */
 @Service
 public class IdempotentUsageReceivedProcessor implements UsageReceivedProcessor {
@@ -32,6 +32,8 @@ public class IdempotentUsageReceivedProcessor implements UsageReceivedProcessor 
     private final UsageLedgerRepository usageLedgerRepository;
     private final MeterDefinitionLookup meterDefinitionLookup;
     private final UsageAggregateRepository usageAggregateRepository;
+    private final UsageWindowAggregateRepository usageWindowAggregateRepository;
+    private final UsageWindowResolver usageWindowResolver;
     private final Clock clock;
 
     public IdempotentUsageReceivedProcessor(
@@ -39,12 +41,16 @@ public class IdempotentUsageReceivedProcessor implements UsageReceivedProcessor 
             UsageLedgerRepository usageLedgerRepository,
             MeterDefinitionLookup meterDefinitionLookup,
             UsageAggregateRepository usageAggregateRepository,
+            UsageWindowAggregateRepository usageWindowAggregateRepository,
+            UsageWindowResolver usageWindowResolver,
             Clock clock
     ) {
         this.processedEventRepository = processedEventRepository;
         this.usageLedgerRepository = usageLedgerRepository;
         this.meterDefinitionLookup = meterDefinitionLookup;
         this.usageAggregateRepository = usageAggregateRepository;
+        this.usageWindowAggregateRepository = usageWindowAggregateRepository;
+        this.usageWindowResolver = usageWindowResolver;
         this.clock = clock;
     }
 
@@ -75,6 +81,18 @@ public class IdempotentUsageReceivedProcessor implements UsageReceivedProcessor 
         }
 
         UsageReceivedPayload payload = event.payload();
+        ActiveMeterDefinition meter = meterDefinitionLookup
+                .findActiveByProductKeyAndMeterKey(payload.productKey(), payload.meterKey())
+                .orElseThrow(() -> new UnknownUsageMeterException(
+                        "Unknown or inactive meter: productKey="
+                                + payload.productKey()
+                                + " meterKey="
+                                + payload.meterKey()
+                ));
+
+        UsageWindow window = usageWindowResolver.resolve(event.occurredAt(), meter.aggregationWindow());
+        boolean late = window.isLate(processedAt);
+
         usageLedgerRepository.insert(new UsageLedgerRecord(
                 UUID.randomUUID(),
                 event.eventId(),
@@ -86,17 +104,9 @@ public class IdempotentUsageReceivedProcessor implements UsageReceivedProcessor 
                 payload.idempotencyKey(),
                 event.correlationId(),
                 payload.principalSubject(),
-                processedAt
+                processedAt,
+                late
         ));
-
-        ActiveMeterDefinition meter = meterDefinitionLookup
-                .findActiveByProductKeyAndMeterKey(payload.productKey(), payload.meterKey())
-                .orElseThrow(() -> new UnknownUsageMeterException(
-                        "Unknown or inactive meter: productKey="
-                                + payload.productKey()
-                                + " meterKey="
-                                + payload.meterKey()
-                ));
 
         usageAggregateRepository.applyEvent(
                 event.tenantId(),
@@ -106,14 +116,29 @@ public class IdempotentUsageReceivedProcessor implements UsageReceivedProcessor 
                 processedAt
         );
 
+        usageWindowAggregateRepository.applyEvent(
+                event.tenantId(),
+                meter,
+                window,
+                payload.quantity(),
+                event.occurredAt(),
+                processedAt
+        );
+
         log.info(
-                "UsageReceived recorded to ledger and aggregate. eventId={} tenantId={} productKey={} "
-                        + "meterKey={} aggregationType={} quantity={} idempotencyKey={} correlationId={}",
+                "UsageReceived recorded to ledger, lifetime aggregate, and window aggregate. "
+                        + "eventId={} tenantId={} productKey={} meterKey={} aggregationType={} "
+                        + "aggregationWindow={} windowStart={} windowEnd={} late={} quantity={} "
+                        + "idempotencyKey={} correlationId={}",
                 event.eventId(),
                 event.tenantId(),
                 payload.productKey(),
                 payload.meterKey(),
                 meter.aggregationType(),
+                meter.aggregationWindow(),
+                window.start(),
+                window.end(),
+                late,
                 payload.quantity(),
                 payload.idempotencyKey(),
                 event.correlationId()

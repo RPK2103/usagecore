@@ -26,6 +26,9 @@ class MeterDefinitionJpaEntity {
     @Column(name = "aggregation_type", nullable = false, length = 32)
     private String aggregationType;
 
+    @Column(name = "aggregation_window", nullable = false, length = 32)
+    private String aggregationWindow;
+
     @Column(name = "status", nullable = false, length = 32)
     private String status;
 
@@ -44,6 +47,7 @@ class MeterDefinitionJpaEntity {
             String meterKey,
             String displayName,
             String aggregationType,
+            String aggregationWindow,
             String status,
             Instant createdAt,
             Instant updatedAt
@@ -53,6 +57,7 @@ class MeterDefinitionJpaEntity {
         this.meterKey = meterKey;
         this.displayName = displayName;
         this.aggregationType = aggregationType;
+        this.aggregationWindow = aggregationWindow;
         this.status = status;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
@@ -76,6 +81,10 @@ class MeterDefinitionJpaEntity {
 
     String getAggregationType() {
         return aggregationType;
+    }
+
+    String getAggregationWindow() {
+        return aggregationWindow;
     }
 
     String getStatus() {

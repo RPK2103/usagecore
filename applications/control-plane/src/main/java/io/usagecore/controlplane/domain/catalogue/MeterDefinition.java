@@ -6,6 +6,10 @@ import java.util.UUID;
 /**
  * Product-scoped meter configuration that defines how usage is aggregated.
  * {@code meterKey} is unique within a product. Owned by Control Plane catalogue.
+ * <p>
+ * Semantic fields {@code meterKey}, {@code aggregationType}, and
+ * {@code aggregationWindow} are immutable after creation so historical ledger
+ * rebuild remains deterministic.
  */
 public final class MeterDefinition {
 
@@ -14,6 +18,7 @@ public final class MeterDefinition {
     private final BusinessKey meterKey;
     private String displayName;
     private final AggregationType aggregationType;
+    private final AggregationWindow aggregationWindow;
     private MeterStatus status;
 
     private MeterDefinition(
@@ -22,6 +27,7 @@ public final class MeterDefinition {
             BusinessKey meterKey,
             String displayName,
             AggregationType aggregationType,
+            AggregationWindow aggregationWindow,
             MeterStatus status
     ) {
         this.id = Objects.requireNonNull(id, "id");
@@ -29,6 +35,7 @@ public final class MeterDefinition {
         this.meterKey = Objects.requireNonNull(meterKey, "meterKey");
         this.displayName = DisplayNames.requireNonBlank(displayName, "displayName");
         this.aggregationType = Objects.requireNonNull(aggregationType, "aggregationType");
+        this.aggregationWindow = Objects.requireNonNull(aggregationWindow, "aggregationWindow");
         this.status = Objects.requireNonNull(status, "status");
     }
 
@@ -36,7 +43,8 @@ public final class MeterDefinition {
             Product product,
             BusinessKey meterKey,
             String displayName,
-            AggregationType aggregationType
+            AggregationType aggregationType,
+            AggregationWindow aggregationWindow
     ) {
         Objects.requireNonNull(product, "product");
         return new MeterDefinition(
@@ -45,6 +53,7 @@ public final class MeterDefinition {
                 meterKey,
                 displayName,
                 aggregationType,
+                aggregationWindow,
                 MeterStatus.ACTIVE
         );
     }
@@ -55,9 +64,18 @@ public final class MeterDefinition {
             BusinessKey meterKey,
             String displayName,
             AggregationType aggregationType,
+            AggregationWindow aggregationWindow,
             MeterStatus status
     ) {
-        return new MeterDefinition(id, productId, meterKey, displayName, aggregationType, status);
+        return new MeterDefinition(
+                id,
+                productId,
+                meterKey,
+                displayName,
+                aggregationType,
+                aggregationWindow,
+                status
+        );
     }
 
     public void deactivate() {
@@ -86,6 +104,10 @@ public final class MeterDefinition {
 
     public AggregationType aggregationType() {
         return aggregationType;
+    }
+
+    public AggregationWindow aggregationWindow() {
+        return aggregationWindow;
     }
 
     public MeterStatus status() {

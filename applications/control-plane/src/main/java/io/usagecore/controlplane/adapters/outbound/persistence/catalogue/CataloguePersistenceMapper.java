@@ -8,6 +8,7 @@ import io.usagecore.controlplane.domain.catalogue.ContractVersionStatus;
 import io.usagecore.controlplane.domain.catalogue.Entitlement;
 import io.usagecore.controlplane.domain.catalogue.EntitlementMode;
 import io.usagecore.controlplane.domain.catalogue.AggregationType;
+import io.usagecore.controlplane.domain.catalogue.AggregationWindow;
 import io.usagecore.controlplane.domain.catalogue.Feature;
 import io.usagecore.controlplane.domain.catalogue.FeatureStatus;
 import io.usagecore.controlplane.domain.catalogue.LimitConfiguration;
@@ -65,6 +66,7 @@ final class CataloguePersistenceMapper {
                 BusinessKey.of(entity.getMeterKey()),
                 entity.getDisplayName(),
                 AggregationType.valueOf(entity.getAggregationType()),
+                AggregationWindow.valueOf(entity.getAggregationWindow()),
                 MeterStatus.valueOf(entity.getStatus())
         );
     }

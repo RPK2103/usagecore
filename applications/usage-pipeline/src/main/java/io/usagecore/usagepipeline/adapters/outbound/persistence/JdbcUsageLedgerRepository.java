@@ -24,19 +24,20 @@ public class JdbcUsageLedgerRepository implements UsageLedgerRepository {
             rs.getString("idempotency_key"),
             rs.getString("correlation_id"),
             rs.getString("principal_id"),
-            rs.getTimestamp("recorded_at").toInstant()
+            rs.getTimestamp("recorded_at").toInstant(),
+            rs.getBoolean("is_late")
     );
 
     private static final String INSERT = """
             INSERT INTO usage_ledger (
                 id, event_id, tenant_id, product_key, meter_key, quantity,
-                occurred_at, idempotency_key, correlation_id, principal_id, recorded_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                occurred_at, idempotency_key, correlation_id, principal_id, recorded_at, is_late
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
 
     private static final String FIND_BY_EVENT_ID = """
             SELECT id, event_id, tenant_id, product_key, meter_key, quantity,
-                   occurred_at, idempotency_key, correlation_id, principal_id, recorded_at
+                   occurred_at, idempotency_key, correlation_id, principal_id, recorded_at, is_late
             FROM usage_ledger
             WHERE event_id = ?
             """;
@@ -67,7 +68,8 @@ public class JdbcUsageLedgerRepository implements UsageLedgerRepository {
                 record.idempotencyKey(),
                 record.correlationId(),
                 record.principalId(),
-                Timestamp.from(record.recordedAt())
+                Timestamp.from(record.recordedAt()),
+                record.isLate()
         );
     }
 

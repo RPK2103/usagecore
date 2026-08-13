@@ -37,4 +37,5 @@ Plan linkage on a version is informational / provenance for how terms were deriv
 
 ## Deferred
 
-Usage events, aggregation windows, reconciliation records, billing exports — later phases. Not modeled here.
+Usage events, reconciliation records, billing exports — later phases.
+Event-time window aggregates exist in Phase 6B (`usage_window_aggregate`); commercial-period finalization is still deferred.

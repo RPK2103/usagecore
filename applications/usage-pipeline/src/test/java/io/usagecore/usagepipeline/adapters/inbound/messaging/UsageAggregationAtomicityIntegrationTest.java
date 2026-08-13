@@ -8,12 +8,14 @@ import io.usagecore.events.EventTypes;
 import io.usagecore.events.EventVersions;
 import io.usagecore.events.usage.UsageReceivedPayload;
 import io.usagecore.usagepipeline.application.usage.ActiveMeterDefinition;
-import io.usagecore.usagepipeline.application.usage.UsageAggregateRecord;
-import io.usagecore.usagepipeline.application.usage.UsageAggregateRepository;
 import io.usagecore.usagepipeline.application.usage.UsagePartitionKey;
 import io.usagecore.usagepipeline.application.usage.UsageReceivedProcessor;
+import io.usagecore.usagepipeline.application.usage.UsageWindow;
+import io.usagecore.usagepipeline.application.usage.UsageWindowAggregateRecord;
+import io.usagecore.usagepipeline.application.usage.UsageWindowAggregateRepository;
 import io.usagecore.usagepipeline.support.MeterDefinitionFixtureSeeder;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,9 +30,9 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
 /**
- * Aggregate failure after inbox/ledger work begins rolls back all three effects.
+ * Window-aggregate failure after inbox/ledger/lifetime work begins rolls back all effects.
  */
-@Import(UsageAggregationAtomicityIntegrationTest.FailingAggregateConfig.class)
+@Import(UsageAggregationAtomicityIntegrationTest.FailingWindowAggregateConfig.class)
 class UsageAggregationAtomicityIntegrationTest extends AbstractIdempotentConsumerIntegrationTest {
 
     private static final UUID ACME = UUID.fromString("11111111-1111-1111-1111-111111111111");
@@ -49,6 +51,7 @@ class UsageAggregationAtomicityIntegrationTest extends AbstractIdempotentConsume
 
     @BeforeEach
     void cleanAndSeed() {
+        jdbcTemplate.update("DELETE FROM usage_window_aggregate");
         jdbcTemplate.update("DELETE FROM usage_aggregate");
         jdbcTemplate.update("DELETE FROM usage_ledger");
         jdbcTemplate.update("DELETE FROM processed_event");
@@ -79,48 +82,67 @@ class UsageAggregationAtomicityIntegrationTest extends AbstractIdempotentConsume
 
         assertThatThrownBy(() -> usageReceivedProcessor.process(event))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("simulated aggregate persistence failure");
+                .hasMessageContaining("simulated window aggregate persistence failure");
 
         Long processed = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM processed_event", Long.class);
         Long ledger = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM usage_ledger", Long.class);
         Long aggregates = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM usage_aggregate", Long.class);
+        Long windowAggregates =
+                jdbcTemplate.queryForObject("SELECT COUNT(*) FROM usage_window_aggregate", Long.class);
         assertThat(processed).isZero();
         assertThat(ledger).isZero();
         assertThat(aggregates).isZero();
+        assertThat(windowAggregates).isZero();
     }
 
     @TestConfiguration
-    static class FailingAggregateConfig {
+    static class FailingWindowAggregateConfig {
         @Bean
         @Primary
-        UsageAggregateRepository failingUsageAggregateRepository() {
-            return new UsageAggregateRepository() {
+        UsageWindowAggregateRepository failingUsageWindowAggregateRepository() {
+            return new UsageWindowAggregateRepository() {
                 @Override
                 public void applyEvent(
                         UUID tenantId,
                         ActiveMeterDefinition meter,
+                        UsageWindow window,
                         long quantity,
                         Instant occurredAt,
                         Instant updatedAt
                 ) {
-                    throw new IllegalStateException("simulated aggregate persistence failure");
+                    throw new IllegalStateException("simulated window aggregate persistence failure");
                 }
 
                 @Override
-                public Optional<UsageAggregateRecord> findByTenantAndMeterDefinition(
+                public Optional<UsageWindowAggregateRecord> findByTenantMeterAndWindow(
                         UUID tenantId,
-                        UUID meterDefinitionId
+                        UUID meterDefinitionId,
+                        Instant windowStart,
+                        Instant windowEnd
                 ) {
                     return Optional.empty();
                 }
 
                 @Override
-                public Optional<UsageAggregateRecord> findByTenantProductKeyAndMeterKey(
+                public Optional<UsageWindowAggregateRecord> findByTenantProductMeterAndWindow(
                         UUID tenantId,
                         String productKey,
-                        String meterKey
+                        String meterKey,
+                        Instant windowStart,
+                        Instant windowEnd
                 ) {
                     return Optional.empty();
+                }
+
+                @Override
+                public List<UsageWindowAggregateRecord> findByTenantProductMeterOverlapping(
+                        UUID tenantId,
+                        String productKey,
+                        String meterKey,
+                        Instant fromInclusive,
+                        Instant toExclusive
+                ) {
+                    return List.of();
                 }
 
                 @Override

@@ -90,7 +90,8 @@ public class ProductController {
                         productId,
                         BusinessKey.of(request.meterKey()),
                         request.displayName(),
-                        request.aggregationType()
+                        request.aggregationType(),
+                        request.aggregationWindow()
                 )
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(body);

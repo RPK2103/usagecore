@@ -39,7 +39,9 @@ class IdempotentUsageReceivedProcessorTest {
         InMemoryUsageLedgerRepository ledger = new InMemoryUsageLedgerRepository();
         InMemoryMeterDefinitionLookup meters = InMemoryMeterDefinitionLookup.countMeter();
         InMemoryUsageAggregateRepository aggregates = new InMemoryUsageAggregateRepository();
-        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger, meters, aggregates);
+        InMemoryUsageWindowAggregateRepository windowAggregates = new InMemoryUsageWindowAggregateRepository();
+        IdempotentUsageReceivedProcessor processor =
+                newProcessor(inbox, ledger, meters, aggregates, windowAggregates);
 
         processor.process(sampleEvent(EVENT_ID, "export-job-1", 3L));
 
@@ -47,6 +49,8 @@ class IdempotentUsageReceivedProcessorTest {
         assertThat(ledger.countByEventId(EVENT_ID)).isEqualTo(1);
         assertThat(aggregates.totalValue()).isEqualTo(1L);
         assertThat(aggregates.eventCount()).isEqualTo(1L);
+        assertThat(windowAggregates.totalValue()).isEqualTo(1L);
+        assertThat(windowAggregates.eventCount()).isEqualTo(1L);
         UsageLedgerRecord row = ledger.findByEventId(EVENT_ID).orElseThrow();
         assertThat(row.tenantId()).isEqualTo(TENANT);
         assertThat(row.productKey()).isEqualTo("datapilot-cloud");
@@ -57,6 +61,7 @@ class IdempotentUsageReceivedProcessorTest {
         assertThat(row.correlationId()).isEqualTo("corr-1");
         assertThat(row.principalId()).isEqualTo("svc-datapilot");
         assertThat(row.recordedAt()).isEqualTo(FIXED);
+        assertThat(row.isLate()).isFalse();
     }
 
     @Test
@@ -65,7 +70,9 @@ class IdempotentUsageReceivedProcessorTest {
         InMemoryUsageLedgerRepository ledger = new InMemoryUsageLedgerRepository();
         InMemoryMeterDefinitionLookup meters = InMemoryMeterDefinitionLookup.sumMeter();
         InMemoryUsageAggregateRepository aggregates = new InMemoryUsageAggregateRepository();
-        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger, meters, aggregates);
+        InMemoryUsageWindowAggregateRepository windowAggregates = new InMemoryUsageWindowAggregateRepository();
+        IdempotentUsageReceivedProcessor processor =
+                newProcessor(inbox, ledger, meters, aggregates, windowAggregates);
         EventEnvelope<UsageReceivedPayload> event = sampleEvent(EVENT_ID, "export-job-100", 10L);
 
         for (int i = 0; i < 100; i++) {
@@ -76,6 +83,8 @@ class IdempotentUsageReceivedProcessorTest {
         assertThat(ledger.countAll()).isEqualTo(1);
         assertThat(aggregates.totalValue()).isEqualTo(10L);
         assertThat(aggregates.eventCount()).isEqualTo(1L);
+        assertThat(windowAggregates.totalValue()).isEqualTo(10L);
+        assertThat(windowAggregates.eventCount()).isEqualTo(1L);
     }
 
     @Test
@@ -84,18 +93,22 @@ class IdempotentUsageReceivedProcessorTest {
         InMemoryUsageLedgerRepository ledger = new InMemoryUsageLedgerRepository();
         InMemoryMeterDefinitionLookup meters = InMemoryMeterDefinitionLookup.countMeter();
         InMemoryUsageAggregateRepository aggregates = new InMemoryUsageAggregateRepository();
-        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger, meters, aggregates);
+        InMemoryUsageWindowAggregateRepository windowAggregates = new InMemoryUsageWindowAggregateRepository();
+        IdempotentUsageReceivedProcessor processor =
+                newProcessor(inbox, ledger, meters, aggregates, windowAggregates);
         EventEnvelope<UsageReceivedPayload> event = sampleEvent(EVENT_ID, "export-job-redeliver", 3L);
 
         processor.process(event);
         assertThat(ledger.countAll()).isEqualTo(1);
         assertThat(aggregates.eventCount()).isEqualTo(1L);
+        assertThat(windowAggregates.eventCount()).isEqualTo(1L);
 
         processor.process(event);
 
         assertThat(inbox.countAll()).isEqualTo(1);
         assertThat(ledger.countAll()).isEqualTo(1);
         assertThat(aggregates.eventCount()).isEqualTo(1L);
+        assertThat(windowAggregates.eventCount()).isEqualTo(1L);
     }
 
     @Test
@@ -104,7 +117,9 @@ class IdempotentUsageReceivedProcessorTest {
         InMemoryUsageLedgerRepository ledger = new InMemoryUsageLedgerRepository();
         InMemoryMeterDefinitionLookup meters = InMemoryMeterDefinitionLookup.countMeter();
         InMemoryUsageAggregateRepository aggregates = new InMemoryUsageAggregateRepository();
-        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger, meters, aggregates);
+        InMemoryUsageWindowAggregateRepository windowAggregates = new InMemoryUsageWindowAggregateRepository();
+        IdempotentUsageReceivedProcessor processor =
+                newProcessor(inbox, ledger, meters, aggregates, windowAggregates);
 
         UUID eventA = UUID.fromString("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb");
         UUID eventB = UUID.fromString("cccccccc-cccc-cccc-cccc-cccccccccccc");
@@ -115,6 +130,7 @@ class IdempotentUsageReceivedProcessorTest {
         assertThat(inbox.countAll()).isEqualTo(2);
         assertThat(ledger.countAll()).isEqualTo(2);
         assertThat(aggregates.eventCount()).isEqualTo(2L);
+        assertThat(windowAggregates.eventCount()).isEqualTo(2L);
         assertThat(ledger.findByEventId(eventA).orElseThrow().idempotencyKey()).isEqualTo("shared-http-key");
         assertThat(ledger.findByEventId(eventB).orElseThrow().idempotencyKey()).isEqualTo("shared-http-key");
     }
@@ -125,7 +141,9 @@ class IdempotentUsageReceivedProcessorTest {
         InMemoryUsageLedgerRepository ledger = new InMemoryUsageLedgerRepository();
         InMemoryMeterDefinitionLookup meters = InMemoryMeterDefinitionLookup.sumMeter();
         InMemoryUsageAggregateRepository aggregates = new InMemoryUsageAggregateRepository();
-        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger, meters, aggregates);
+        InMemoryUsageWindowAggregateRepository windowAggregates = new InMemoryUsageWindowAggregateRepository();
+        IdempotentUsageReceivedProcessor processor =
+                newProcessor(inbox, ledger, meters, aggregates, windowAggregates);
         EventEnvelope<UsageReceivedPayload> event = sampleEvent(EVENT_ID, "export-job-concurrent", 10L);
 
         int threads = 16;
@@ -149,6 +167,8 @@ class IdempotentUsageReceivedProcessorTest {
         assertThat(ledger.countAll()).isEqualTo(1);
         assertThat(aggregates.totalValue()).isEqualTo(10L);
         assertThat(aggregates.eventCount()).isEqualTo(1L);
+        assertThat(windowAggregates.totalValue()).isEqualTo(10L);
+        assertThat(windowAggregates.eventCount()).isEqualTo(1L);
     }
 
     @Test
@@ -157,7 +177,9 @@ class IdempotentUsageReceivedProcessorTest {
         InMemoryUsageLedgerRepository ledger = new InMemoryUsageLedgerRepository();
         InMemoryMeterDefinitionLookup meters = InMemoryMeterDefinitionLookup.countMeter();
         InMemoryUsageAggregateRepository aggregates = new InMemoryUsageAggregateRepository();
-        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger, meters, aggregates);
+        InMemoryUsageWindowAggregateRepository windowAggregates = new InMemoryUsageWindowAggregateRepository();
+        IdempotentUsageReceivedProcessor processor =
+                newProcessor(inbox, ledger, meters, aggregates, windowAggregates);
 
         EventEnvelope<UsageReceivedPayload> unsupported = new EventEnvelope<>(
                 EVENT_ID,
@@ -179,6 +201,7 @@ class IdempotentUsageReceivedProcessorTest {
         assertThat(inbox.countAll()).isZero();
         assertThat(ledger.countAll()).isZero();
         assertThat(aggregates.eventCount()).isZero();
+        assertThat(windowAggregates.eventCount()).isZero();
     }
 
     @Test
@@ -187,7 +210,9 @@ class IdempotentUsageReceivedProcessorTest {
         InMemoryUsageLedgerRepository ledger = new InMemoryUsageLedgerRepository();
         InMemoryMeterDefinitionLookup meters = InMemoryMeterDefinitionLookup.countMeter();
         InMemoryUsageAggregateRepository aggregates = new InMemoryUsageAggregateRepository();
-        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger, meters, aggregates);
+        InMemoryUsageWindowAggregateRepository windowAggregates = new InMemoryUsageWindowAggregateRepository();
+        IdempotentUsageReceivedProcessor processor =
+                newProcessor(inbox, ledger, meters, aggregates, windowAggregates);
 
         EventEnvelope<UsageReceivedPayload> invalid = new EventEnvelope<>(
                 EVENT_ID,
@@ -209,6 +234,7 @@ class IdempotentUsageReceivedProcessorTest {
         assertThat(inbox.countAll()).isZero();
         assertThat(ledger.countAll()).isZero();
         assertThat(aggregates.eventCount()).isZero();
+        assertThat(windowAggregates.eventCount()).isZero();
     }
 
     @Test
@@ -217,7 +243,9 @@ class IdempotentUsageReceivedProcessorTest {
         InMemoryUsageLedgerRepository ledger = new InMemoryUsageLedgerRepository();
         InMemoryMeterDefinitionLookup meters = new InMemoryMeterDefinitionLookup(Optional.empty());
         InMemoryUsageAggregateRepository aggregates = new InMemoryUsageAggregateRepository();
-        IdempotentUsageReceivedProcessor processor = newProcessor(inbox, ledger, meters, aggregates);
+        InMemoryUsageWindowAggregateRepository windowAggregates = new InMemoryUsageWindowAggregateRepository();
+        IdempotentUsageReceivedProcessor processor =
+                newProcessor(inbox, ledger, meters, aggregates, windowAggregates);
 
         // Without @Transactional, claim+ledger may remain in in-memory stubs after failure;
         // production path rolls back via Spring transaction. Assert exception type here.
@@ -225,19 +253,23 @@ class IdempotentUsageReceivedProcessorTest {
                 .isInstanceOf(UnknownUsageMeterException.class)
                 .hasMessageContaining("Unknown or inactive meter");
         assertThat(aggregates.eventCount()).isZero();
+        assertThat(windowAggregates.eventCount()).isZero();
     }
 
     private static IdempotentUsageReceivedProcessor newProcessor(
             ProcessedEventRepository inbox,
             UsageLedgerRepository ledger,
             MeterDefinitionLookup meters,
-            UsageAggregateRepository aggregates
+            UsageAggregateRepository aggregates,
+            UsageWindowAggregateRepository windowAggregates
     ) {
         return new IdempotentUsageReceivedProcessor(
                 inbox,
                 ledger,
                 meters,
                 aggregates,
+                windowAggregates,
+                new UsageWindowResolver(),
                 Clock.fixed(FIXED, ZoneOffset.UTC)
         );
     }
@@ -327,7 +359,8 @@ class IdempotentUsageReceivedProcessorTest {
                     PRODUCT_ID,
                     "datapilot-cloud",
                     "scheduled_export",
-                    AggregationType.COUNT
+                    AggregationType.COUNT,
+                    AggregationWindow.MONTHLY
             )));
         }
 
@@ -337,7 +370,8 @@ class IdempotentUsageReceivedProcessorTest {
                     PRODUCT_ID,
                     "datapilot-cloud",
                     "scheduled_export",
-                    AggregationType.SUM
+                    AggregationType.SUM,
+                    AggregationWindow.MONTHLY
             )));
         }
 
@@ -389,6 +423,77 @@ class IdempotentUsageReceivedProcessorTest {
                 String meterKey
         ) {
             return Optional.empty();
+        }
+
+        @Override
+        public long countAll() {
+            return events.get() > 0 ? 1L : 0L;
+        }
+
+        long totalValue() {
+            return value.get();
+        }
+
+        long eventCount() {
+            return events.get();
+        }
+    }
+
+    static final class InMemoryUsageWindowAggregateRepository implements UsageWindowAggregateRepository {
+        private final AtomicLong value = new AtomicLong();
+        private final AtomicInteger events = new AtomicInteger();
+
+        @Override
+        public void applyEvent(
+                UUID tenantId,
+                ActiveMeterDefinition meter,
+                UsageWindow window,
+                long quantity,
+                Instant occurredAt,
+                Instant updatedAt
+        ) {
+            long contribution = switch (meter.aggregationType()) {
+                case SUM, MAX -> quantity;
+                case COUNT -> 1L;
+            };
+            if (meter.aggregationType() == AggregationType.MAX) {
+                value.accumulateAndGet(contribution, Math::max);
+            } else {
+                value.addAndGet(contribution);
+            }
+            events.incrementAndGet();
+        }
+
+        @Override
+        public Optional<UsageWindowAggregateRecord> findByTenantMeterAndWindow(
+                UUID tenantId,
+                UUID meterDefinitionId,
+                Instant windowStart,
+                Instant windowEnd
+        ) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<UsageWindowAggregateRecord> findByTenantProductMeterAndWindow(
+                UUID tenantId,
+                String productKey,
+                String meterKey,
+                Instant windowStart,
+                Instant windowEnd
+        ) {
+            return Optional.empty();
+        }
+
+        @Override
+        public List<UsageWindowAggregateRecord> findByTenantProductMeterOverlapping(
+                UUID tenantId,
+                String productKey,
+                String meterKey,
+                Instant fromInclusive,
+                Instant toExclusive
+        ) {
+            return List.of();
         }
 
         @Override

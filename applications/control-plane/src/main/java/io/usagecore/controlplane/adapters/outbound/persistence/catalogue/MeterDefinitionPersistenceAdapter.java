@@ -30,12 +30,14 @@ class MeterDefinitionPersistenceAdapter implements MeterDefinitionRepository {
             entity.setUpdatedAt(now);
             meterDefinitionJpaRepository.save(entity);
         } else {
+            // aggregationType / aggregationWindow / meterKey are write-once (immutable semantics).
             meterDefinitionJpaRepository.save(new MeterDefinitionJpaEntity(
                     meterDefinition.id(),
                     meterDefinition.productId(),
                     meterDefinition.meterKey().value(),
                     meterDefinition.displayName(),
                     meterDefinition.aggregationType().name(),
+                    meterDefinition.aggregationWindow().name(),
                     meterDefinition.status().name(),
                     now,
                     now

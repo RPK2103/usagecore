@@ -10,6 +10,7 @@ public record ActiveMeterDefinition(
         UUID productId,
         String productKey,
         String meterKey,
-        AggregationType aggregationType
+        AggregationType aggregationType,
+        AggregationWindow aggregationWindow
 ) {
 }

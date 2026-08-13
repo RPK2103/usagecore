@@ -2,6 +2,7 @@ package io.usagecore.usagepipeline.adapters.outbound.persistence;
 
 import io.usagecore.usagepipeline.application.usage.ActiveMeterDefinition;
 import io.usagecore.usagepipeline.application.usage.AggregationType;
+import io.usagecore.usagepipeline.application.usage.AggregationWindow;
 import io.usagecore.usagepipeline.application.usage.MeterDefinitionLookup;
 import java.util.List;
 import java.util.Optional;
@@ -21,7 +22,8 @@ public class JdbcMeterDefinitionLookup implements MeterDefinitionLookup {
             rs.getObject("product_id", java.util.UUID.class),
             rs.getString("product_key"),
             rs.getString("meter_key"),
-            AggregationType.valueOf(rs.getString("aggregation_type"))
+            AggregationType.valueOf(rs.getString("aggregation_type")),
+            AggregationWindow.valueOf(rs.getString("aggregation_window"))
     );
 
     private static final String FIND_ACTIVE = """
@@ -30,7 +32,8 @@ public class JdbcMeterDefinitionLookup implements MeterDefinitionLookup {
                 p.id AS product_id,
                 p.product_key AS product_key,
                 md.meter_key AS meter_key,
-                md.aggregation_type AS aggregation_type
+                md.aggregation_type AS aggregation_type,
+                md.aggregation_window AS aggregation_window
             FROM meter_definition md
             INNER JOIN product p ON p.id = md.product_id
             WHERE p.product_key = ?

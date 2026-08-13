@@ -24,6 +24,7 @@ schema awareness and test migrations. Do not duplicate SQL files under applicati
 | V6 | `usage_ingestion` + `outbox_event` (Phase 5A durable ingestion / transactional outbox) |
 | V7 | `processed_event` + `usage_ledger` (Phase 5B consumer inbox / canonical usage ledger) |
 | V8 | `meter_definition` + `usage_aggregate` (Phase 6A metering / deterministic aggregation) |
+| V9 | `aggregation_window` on meters + `usage_window_aggregate` + `usage_ledger.is_late` (Phase 6B event-time windows) |
 
 ## Trade-off (v1)
 

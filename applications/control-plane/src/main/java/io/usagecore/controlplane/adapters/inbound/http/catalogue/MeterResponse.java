@@ -1,6 +1,7 @@
 package io.usagecore.controlplane.adapters.inbound.http.catalogue;
 
 import io.usagecore.controlplane.domain.catalogue.AggregationType;
+import io.usagecore.controlplane.domain.catalogue.AggregationWindow;
 import io.usagecore.controlplane.domain.catalogue.MeterDefinition;
 import io.usagecore.controlplane.domain.catalogue.MeterStatus;
 import java.util.UUID;
@@ -11,6 +12,7 @@ public record MeterResponse(
         String meterKey,
         String displayName,
         AggregationType aggregationType,
+        AggregationWindow aggregationWindow,
         MeterStatus status
 ) {
 
@@ -21,6 +23,7 @@ public record MeterResponse(
                 meter.meterKey().value(),
                 meter.displayName(),
                 meter.aggregationType(),
+                meter.aggregationWindow(),
                 meter.status()
         );
     }

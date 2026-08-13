@@ -52,18 +52,25 @@ Milestones are sequential. Each builds only the workloads it needs.
 - Bounded retry + DLQ `usagecore.usage.received.v1.dlq` for poison/non-retryable events
 - [ADR-010](adr/ADR-010-consumer-inbox-and-idempotent-processing.md)
 
-## Phase 6A — Meter definitions + deterministic aggregation (current)
+## Phase 6A — Meter definitions + deterministic aggregation
 
 - Control Plane `MeterDefinition` catalogue (`SUM` / `COUNT` / `MAX`) — Flyway V8
 - Consumer transaction extended: inbox + ledger + PostgreSQL atomic `usage_aggregate` UPSERT
 - Usage Pipeline JDBC meter lookup (no Control Plane compile-time dependency)
 - Unknown/inactive meter → non-retryable → DLQ; no silent meter creation
 - Kafka Streams deferred ([ADR-011](adr/ADR-011-metering-and-aggregation.md))
-- No billing periods, windows, quota, or pricing yet
 
-## Phase 6B+ — Windows / quota (later)
+## Phase 6B — Event-time windows + late-event semantics (current)
 
-- Event-time windows / late events
+- `MeterDefinition.aggregationWindow` (`MONTHLY` / `DAILY`) — UTC half-open intervals
+- Derived `usage_window_aggregate` + `usage_ledger.is_late` — Flyway V9
+- Window assignment from `occurredAt`; late events accepted and update historical windows
+- Semantic meter fields immutable after create ([ADR-012](adr/ADR-012-event-time-and-windowed-metering.md))
+- Kafka Streams re-evaluated and still deferred
+- No commercial-period finalization, quota, billing, or adjustments yet
+
+## Phase 6C+ — Quota (later)
+
 - Remaining quota against entitlements (as evidenced)
 
 ## Phase 7 — Tenancy hardening (optional RLS revisit)

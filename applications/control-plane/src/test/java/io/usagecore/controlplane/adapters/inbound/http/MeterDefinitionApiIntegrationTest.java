@@ -18,7 +18,8 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
                         {
                           "meterKey": "api_requests",
                           "displayName": "API Requests",
-                          "aggregationType": "SUM"
+                          "aggregationType": "SUM",
+                          "aggregationWindow": "MONTHLY"
                         }
                         """)
                 .when()
@@ -30,6 +31,7 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
                 .body("meterKey", equalTo("api_requests"))
                 .body("displayName", equalTo("API Requests"))
                 .body("aggregationType", equalTo("SUM"))
+                .body("aggregationWindow", equalTo("MONTHLY"))
                 .body("status", equalTo("ACTIVE"))
                 .extract()
                 .path("id");
@@ -39,7 +41,8 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
                         {
                           "meterKey": "scheduled_export",
                           "displayName": "Scheduled Export",
-                          "aggregationType": "COUNT"
+                          "aggregationType": "COUNT",
+                          "aggregationWindow": "MONTHLY"
                         }
                         """)
                 .when()
@@ -47,6 +50,7 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
                 .then()
                 .statusCode(201)
                 .body("aggregationType", equalTo("COUNT"))
+                .body("aggregationWindow", equalTo("MONTHLY"))
                 .body("meterKey", equalTo("scheduled_export"));
 
         givenJson()
@@ -54,14 +58,16 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
                         {
                           "meterKey": "workspace_size",
                           "displayName": "Workspace Size",
-                          "aggregationType": "MAX"
+                          "aggregationType": "MAX",
+                          "aggregationWindow": "MONTHLY"
                         }
                         """)
                 .when()
                 .post("/products/{productId}/meters", productId)
                 .then()
                 .statusCode(201)
-                .body("aggregationType", equalTo("MAX"));
+                .body("aggregationType", equalTo("MAX"))
+                .body("aggregationWindow", equalTo("MONTHLY"));
 
         givenJson()
                 .when()
@@ -69,7 +75,8 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
                 .then()
                 .statusCode(200)
                 .body("meterKey", equalTo("api_requests"))
-                .body("aggregationType", equalTo("SUM"));
+                .body("aggregationType", equalTo("SUM"))
+                .body("aggregationWindow", equalTo("MONTHLY"));
     }
 
     @Test
@@ -81,7 +88,8 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
                         {
                           "meterKey": "api_requests",
                           "displayName": "API Requests",
-                          "aggregationType": "SUM"
+                          "aggregationType": "SUM",
+                          "aggregationWindow": "MONTHLY"
                         }
                         """)
                 .when()
@@ -94,7 +102,8 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
                         {
                           "meterKey": "api_requests",
                           "displayName": "API Requests Again",
-                          "aggregationType": "COUNT"
+                          "aggregationType": "COUNT",
+                          "aggregationWindow": "MONTHLY"
                         }
                         """)
                 .when()
@@ -113,7 +122,28 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
                         {
                           "meterKey": "api_requests",
                           "displayName": "API Requests",
-                          "aggregationType": "AVERAGE"
+                          "aggregationType": "AVERAGE",
+                          "aggregationWindow": "MONTHLY"
+                        }
+                        """)
+                .when()
+                .post("/products/{productId}/meters", productId)
+                .then()
+                .statusCode(400)
+                .body("errorCode", equalTo("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void invalidAggregationWindowRejected() {
+        String productId = createProduct("bad-window-product", "Bad Window Product");
+
+        givenJson()
+                .body("""
+                        {
+                          "meterKey": "api_requests",
+                          "displayName": "API Requests",
+                          "aggregationType": "SUM",
+                          "aggregationWindow": "WEEKLY"
                         }
                         """)
                 .when()
@@ -133,6 +163,7 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
                           "meterKey": "api_requests",
                           "displayName": "API Requests",
                           "aggregationType": "SUM",
+                          "aggregationWindow": "MONTHLY",
                           "pricing": 9.99
                         }
                         """)
@@ -151,7 +182,8 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
                         {
                           "meterKey": "api_requests",
                           "displayName": "API Requests",
-                          "aggregationType": "SUM"
+                          "aggregationType": "SUM",
+                          "aggregationWindow": "MONTHLY"
                         }
                         """)
                 .when()
@@ -168,7 +200,8 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
                         {
                           "meterKey": "other_meter",
                           "displayName": "Other",
-                          "aggregationType": "SUM"
+                          "aggregationType": "SUM",
+                          "aggregationWindow": "MONTHLY"
                         }
                         """)
                 .when()
@@ -182,7 +215,8 @@ class MeterDefinitionApiIntegrationTest extends AbstractApiIntegrationTest {
                 .get("/products/{productId}/meters/{meterId}", productId, meterId)
                 .then()
                 .statusCode(200)
-                .body("meterKey", equalTo("api_requests"));
+                .body("meterKey", equalTo("api_requests"))
+                .body("aggregationWindow", equalTo("MONTHLY"));
     }
 
     private String createProduct(String key, String name) {

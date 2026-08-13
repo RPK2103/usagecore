@@ -3,6 +3,7 @@ package io.usagecore.usagepipeline.adapters.inbound.http.usage;
 import io.usagecore.usagepipeline.application.usage.UsageAggregateQueryService;
 import io.usagecore.usagepipeline.application.usage.UsageIngestionApplicationService;
 import io.usagecore.usagepipeline.application.usage.UsageIngestionResult;
+import io.usagecore.usagepipeline.application.usage.UsageWindowAggregateQueryService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -21,13 +22,16 @@ public class UsageController {
 
     private final UsageIngestionApplicationService usageIngestionApplicationService;
     private final UsageAggregateQueryService usageAggregateQueryService;
+    private final UsageWindowAggregateQueryService usageWindowAggregateQueryService;
 
     public UsageController(
             UsageIngestionApplicationService usageIngestionApplicationService,
-            UsageAggregateQueryService usageAggregateQueryService
+            UsageAggregateQueryService usageAggregateQueryService,
+            UsageWindowAggregateQueryService usageWindowAggregateQueryService
     ) {
         this.usageIngestionApplicationService = usageIngestionApplicationService;
         this.usageAggregateQueryService = usageAggregateQueryService;
+        this.usageWindowAggregateQueryService = usageWindowAggregateQueryService;
     }
 
     /**
@@ -55,7 +59,7 @@ public class UsageController {
     }
 
     /**
-     * Tenant-scoped read of derived Phase 6A aggregate state.
+     * Tenant-scoped read of derived Phase 6A lifetime aggregate state.
      * Tenant identity comes only from the JWT — never from the path or body.
      */
     @GetMapping("/aggregates/{productKey}/{meterKey}")
@@ -68,6 +72,24 @@ public class UsageController {
                 UsageAggregateResponse.from(
                         productKey,
                         usageAggregateQueryService.requireAggregate(productKey, meterKey)
+                )
+        );
+    }
+
+    /**
+     * Tenant-scoped read of the current event-time window aggregate (UTC calendar window).
+     * Tenant identity comes only from the JWT — never from the path or body.
+     */
+    @GetMapping("/aggregates/{productKey}/{meterKey}/windows/current")
+    @PreAuthorize("hasAnyRole('DEVELOPER','TENANT_ADMIN','AUDITOR','BILLING_OPERATOR')")
+    public ResponseEntity<UsageWindowAggregateResponse> getCurrentWindowAggregate(
+            @PathVariable String productKey,
+            @PathVariable String meterKey
+    ) {
+        return ResponseEntity.ok(
+                UsageWindowAggregateResponse.from(
+                        productKey,
+                        usageWindowAggregateQueryService.requireCurrentWindow(productKey, meterKey)
                 )
         );
     }
