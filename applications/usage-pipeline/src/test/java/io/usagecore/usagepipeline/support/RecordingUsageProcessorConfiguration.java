@@ -2,7 +2,7 @@ package io.usagecore.usagepipeline.support;
 
 import io.usagecore.events.EventEnvelope;
 import io.usagecore.events.usage.UsageReceivedPayload;
-import io.usagecore.usagepipeline.application.usage.LoggingUsageReceivedProcessor;
+import io.usagecore.usagepipeline.application.usage.IdempotentUsageReceivedProcessor;
 import io.usagecore.usagepipeline.application.usage.UsageReceivedProcessor;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -34,7 +34,7 @@ public class RecordingUsageProcessorConfiguration {
         @Override
         public void process(EventEnvelope<UsageReceivedPayload> event) {
             try {
-                LoggingUsageReceivedProcessor.validateSupportedContract(event);
+                IdempotentUsageReceivedProcessor.validateSupportedContract(event);
                 events.add(event);
             } catch (RuntimeException ex) {
                 failures.add(ex);

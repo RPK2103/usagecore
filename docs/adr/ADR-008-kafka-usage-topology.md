@@ -83,7 +83,8 @@ eliminate hot partitions.
 
 Versioned JSON envelopes live in `libraries/event-contracts` (transport only).
 `eventId` identifies the emitted event instance; caller `idempotencyKey` identifies the
-logical usage operation (future Phase 5 dedup key).
+logical usage operation (HTTP ingestion dedup). Consumer redelivery dedup uses `eventId`
+([ADR-010](ADR-010-consumer-inbox-and-idempotent-processing.md)).
 
 ## Consequences
 

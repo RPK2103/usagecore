@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.usagecore.events.EventEnvelope;
 import io.usagecore.events.usage.UsageReceivedPayload;
+import io.usagecore.usagepipeline.application.usage.InvalidUsageEventException;
 import io.usagecore.usagepipeline.application.usage.UnsupportedUsageEventException;
 import io.usagecore.usagepipeline.application.usage.UsageReceivedProcessor;
 import io.usagecore.usagepipeline.configuration.KafkaProperties;
@@ -14,9 +15,12 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 /**
- * Phase 4 consumer foundation for {@code usagecore.usage.received.v1}.
- * Deserializes and validates supported contracts; does not perform commercial side effects.
- * Not claimed idempotent — Phase 5 adds inbox/deduplication.
+ * Consumes {@code usagecore.usage.received.v1}.
+ * <p>
+ * Offset acknowledgement follows Spring Kafka {@code ack-mode: record}: the container
+ * acknowledges only after this listener returns successfully (after the DB transaction
+ * committed inside {@link UsageReceivedProcessor}). Exceptions prevent acknowledgement
+ * so transient failures remain redeliverable.
  */
 @Component
 public class UsageReceivedKafkaListener {
@@ -48,13 +52,17 @@ public class UsageReceivedKafkaListener {
             });
         } catch (Exception ex) {
             log.error(
-                    "Failed to deserialize UsageReceived (Phase 4). topic={} partition={} offset={}",
+                    "Failed to deserialize UsageReceived. topic={} partition={} offset={}",
                     record.topic(),
                     record.partition(),
                     record.offset(),
                     ex
             );
-            throw new UnsupportedUsageEventException("Failed to deserialize UsageReceived event");
+            throw new InvalidUsageEventException("Failed to deserialize UsageReceived event");
+        }
+
+        if (event == null) {
+            throw new InvalidUsageEventException("Deserialized UsageReceived envelope was null");
         }
 
         log.debug(
@@ -67,6 +75,21 @@ public class UsageReceivedKafkaListener {
                 event.eventId()
         );
 
-        usageReceivedProcessor.process(event);
+        try {
+            usageReceivedProcessor.process(event);
+        } catch (UnsupportedUsageEventException | InvalidUsageEventException ex) {
+            throw ex;
+        } catch (RuntimeException ex) {
+            log.error(
+                    "Transient or unexpected UsageReceived processing failure. "
+                            + "topic={} partition={} offset={} eventId={}",
+                    record.topic(),
+                    record.partition(),
+                    record.offset(),
+                    event.eventId(),
+                    ex
+            );
+            throw ex;
+        }
     }
 }

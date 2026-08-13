@@ -22,6 +22,7 @@ schema awareness and test migrations. Do not duplicate SQL files under applicati
 | V1–V4 | Foundation, catalogue, contract, security audit (unchanged from Control Plane history) |
 | V5 | `entitlement_decision` append-oriented decision evidence |
 | V6 | `usage_ingestion` + `outbox_event` (Phase 5A durable ingestion / transactional outbox) |
+| V7 | `processed_event` + `usage_ledger` (Phase 5B consumer inbox / canonical usage ledger) |
 
 ## Trade-off (v1)
 

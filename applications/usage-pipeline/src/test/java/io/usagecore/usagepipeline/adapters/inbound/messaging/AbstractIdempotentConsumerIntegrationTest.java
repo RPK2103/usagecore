@@ -1,13 +1,8 @@
-package io.usagecore.usagepipeline.adapters.inbound.http;
+package io.usagecore.usagepipeline.adapters.inbound.messaging;
 
 import io.restassured.RestAssured;
-import io.restassured.http.ContentType;
-import io.restassured.specification.RequestSpecification;
 import io.usagecore.usagepipeline.support.FixedClockTestConfiguration;
-import io.usagecore.usagepipeline.support.RecordingUsageProcessorConfiguration;
-import io.usagecore.usagepipeline.support.TestJwtSupport;
 import io.usagecore.usagepipeline.support.TestSecurityConfiguration;
-import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
@@ -18,13 +13,17 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
+/**
+ * Integration base that uses the real {@code IdempotentUsageReceivedProcessor}
+ * (no recording stub).
+ * <p>
+ * Subclasses that start a Kafka listener must set a unique
+ * {@code usagecore.kafka.consumer-group} so cached Spring contexts cannot steal
+ * partitions from each other on the shared Testcontainers broker.
+ */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Import({
-        TestSecurityConfiguration.class,
-        FixedClockTestConfiguration.class,
-        RecordingUsageProcessorConfiguration.class
-})
-abstract class AbstractUsageApiIntegrationTest {
+@Import({TestSecurityConfiguration.class, FixedClockTestConfiguration.class})
+abstract class AbstractIdempotentConsumerIntegrationTest {
 
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine")
             .withDatabaseName("usagecore")
@@ -51,8 +50,6 @@ abstract class AbstractUsageApiIntegrationTest {
         registry.add("spring.security.oauth2.resourceserver.jwt.jwk-set-uri", () -> "http://localhost/unused");
         registry.add("usagecore.kafka.topics.usage-received", () -> "usagecore.usage.received.v1");
         registry.add("usagecore.kafka.topics.usage-received-dlq", () -> "usagecore.usage.received.v1.dlq");
-        registry.add("usagecore.kafka.consumer-group", () -> "usagecore-usage-pipeline-v1-test");
-        // Deterministic tests invoke OutboxPublisherApplicationService directly.
         registry.add("usagecore.outbox.publisher.enabled", () -> "false");
         registry.add("usagecore.kafka.consumer-retry.interval-ms", () -> "50");
         registry.add("usagecore.kafka.consumer-retry.max-attempts", () -> "2");
@@ -63,22 +60,5 @@ abstract class AbstractUsageApiIntegrationTest {
         RestAssured.port = port;
         RestAssured.basePath = "/api/v1";
         RestAssured.enableLoggingOfRequestAndResponseIfValidationFails();
-    }
-
-    protected RequestSpecification givenBearer(String token) {
-        return RestAssured.given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .header("Authorization", "Bearer " + token);
-    }
-
-    protected RequestSpecification givenUnauthenticatedJson() {
-        return RestAssured.given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON);
-    }
-
-    protected String developerToken(UUID tenantId) {
-        return TestJwtSupport.developer(tenantId);
     }
 }

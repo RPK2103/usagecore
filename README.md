@@ -30,7 +30,7 @@ Shared libraries:
 - [`libraries/database-migrations`](libraries/database-migrations/README.md) — Flyway SQL (Control Plane owns production migrations)
 - [`libraries/event-contracts`](libraries/event-contracts) — versioned Kafka transport envelopes only
 
-## Phase 5A status
+## Phase 5B status
 
 Three independently deployable applications:
 
@@ -38,18 +38,18 @@ Three independently deployable applications:
 | --- | --- |
 | Control Plane | Catalog / commercial configuration; production Flyway owner |
 | Entitlement Runtime | Authenticated entitlement checks against activated snapshots ([ADR-007](docs/adr/ADR-007-entitlement-runtime-read-architecture.md)) |
-| Usage Pipeline | Durable usage ingestion + transactional outbox → Kafka `UsageReceived` ([ADR-008](docs/adr/ADR-008-kafka-usage-topology.md), [ADR-009](docs/adr/ADR-009-transactional-outbox-ingestion-idempotency.md)) |
+| Usage Pipeline | Durable ingestion + outbox + idempotent consumer ledger ([ADR-008](docs/adr/ADR-008-kafka-usage-topology.md), [ADR-009](docs/adr/ADR-009-transactional-outbox-ingestion-idempotency.md), [ADR-010](docs/adr/ADR-010-consumer-inbox-and-idempotent-processing.md)) |
 
-Usage Pipeline Phase 5A:
+Usage Pipeline Phase 5B:
 
 - `POST /api/v1/usage/events` → **202** after PostgreSQL commit of `usage_ingestion` + `outbox_event`
-- Tenant-scoped idempotency (`UNIQUE (tenant_id, idempotency_key)`); conflict → **409** `IDEMPOTENCY_CONFLICT`
-- Asynchronous outbox publisher → topic `usagecore.usage.received.v1`
-- Partition key: `tenantId|productKey|meterKey`
-- Consumer group: `usagecore-usage-pipeline-v1` (still logging-only)
-- **No** consumer inbox/dedup, aggregation, quota, Streams, or billing yet
+- Asynchronous outbox publisher → topic `usagecore.usage.received.v1` (at-least-once)
+- Consumer inbox (`processed_event`) + canonical `usage_ledger` keyed by Kafka `eventId`
+- Duplicate Kafka redelivery → successful no-op (one ledger effect)
+- Bounded retry; poison/non-retryable events → `usagecore.usage.received.v1.dlq`
+- **No** aggregation, quota, Streams, or billing yet
 
-HTTP 202 means durably accepted for asynchronous processing — not that Kafka processed the event or that usage totals / quotas changed.
+HTTP 202 means durably accepted for asynchronous processing — not that usage totals / quotas changed.
 
 ## Prerequisites
 
@@ -211,7 +211,6 @@ docker compose -f infrastructure/docker/docker-compose.yml config
 
 ## Non-goals (current)
 
-- Consumer inbox / processed-event deduplication / retry-DLQ (Phase 5B)
 - Usage aggregation, MeterDefinition, remaining quota, billing periods
 - Kafka Streams / Schema Registry / Avro
 - Cognito / AWS / Kubernetes

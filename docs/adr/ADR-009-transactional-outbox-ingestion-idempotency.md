@@ -11,7 +11,8 @@ That coupled HTTP durability to broker availability and provided no business
 idempotency for retries. Phase 5A moves durable acceptance into PostgreSQL and
 publishes asynchronously via a transactional outbox.
 
-Consumer inbox / processed-event deduplication remains Phase 5B.
+Consumer inbox / processed-event deduplication is implemented in Phase 5B
+([ADR-010](ADR-010-consumer-inbox-and-idempotent-processing.md)).
 
 ## Decision
 
@@ -86,7 +87,8 @@ outbox row remains PENDING
 event may be published again (same eventId)
 ```
 
-This is expected at-least-once behavior. Phase 5B consumer idempotency makes
+This is expected at-least-once behavior. Phase 5B consumer idempotency
+([ADR-010](ADR-010-consumer-inbox-and-idempotent-processing.md)) makes
 duplicate Kafka delivery safe.
 
 v1 holds row locks while awaiting Kafka acknowledgement (simplicity over leasing).
@@ -95,11 +97,11 @@ Slow brokers extend lock duration — documented trade-off, not a distributed lo
 ### Why consumer idempotency is required next
 
 Producer-side outbox alone cannot make end-to-end processing once-only under
-at-least-once Kafka delivery. Phase 5B must add consumer inbox / processed-event
-protection before commercial side effects.
+at-least-once Kafka delivery. Phase 5B adds consumer inbox / processed-event
+protection before commercial side effects ([ADR-010](ADR-010-consumer-inbox-and-idempotent-processing.md)).
 
 ## Consequences
 
 - Usage Pipeline may use PostgreSQL via JDBC; Control Plane remains production Flyway owner.
 - Event contract stays `UsageReceived` / `usagecore.usage.received.v1` (no new event type).
-- Phase 4 consumer remains logging-only until Phase 5B.
+- Consumer processing is idempotent via inbox + ledger in Phase 5B (ADR-010).

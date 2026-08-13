@@ -14,8 +14,9 @@
     <artifactId>usage-pipeline</artifactId>
     <name>UsageCore Usage Pipeline</name>
     <description>
-        Authenticated usage ingestion with durable PostgreSQL acceptance and Kafka outbox.
-        No compile-time dependency on Control Plane or Entitlement Runtime.
+        Authenticated usage ingestion with durable PostgreSQL acceptance, Kafka outbox,
+        and idempotent consumer ledger processing. No compile-time dependency on Control Plane
+        or Entitlement Runtime.
     </description>
 
     <dependencies>

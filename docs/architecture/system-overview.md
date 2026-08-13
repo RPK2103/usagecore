@@ -8,7 +8,7 @@ UsageCore is a multi-tenant entitlement and usage platform. PostgreSQL is the tr
 | --- | --- |
 | control-plane | Catalog and commercial configuration: Tenant, Product, Feature, Plan, Contract, ContractVersion activation; **production Flyway owner** |
 | entitlement-runtime | Authenticated entitlement checks against activated contract snapshots; decision evidence; no Control Plane compile-time dependency ([ADR-007](../adr/ADR-007-entitlement-runtime-read-architecture.md)) |
-| usage-pipeline | Authenticated usage ingestion to Kafka; aggregation/reconciliation later; no Control Plane / Entitlement Runtime compile-time dependency ([ADR-008](../adr/ADR-008-kafka-usage-topology.md)) |
+| usage-pipeline | Durable usage ingestion, transactional outbox, idempotent consumer ledger; aggregation/reconciliation later; no Control Plane / Entitlement Runtime compile-time dependency ([ADR-008](../adr/ADR-008-kafka-usage-topology.md), [ADR-009](../adr/ADR-009-transactional-outbox-ingestion-idempotency.md), [ADR-010](../adr/ADR-010-consumer-inbox-and-idempotent-processing.md)) |
 
 Build only workloads required by the active milestone. No frontend in this repo.
 
@@ -50,9 +50,10 @@ Usage ingestion never accepts `tenantId` from the request body; tenant comes onl
 - Activated `ContractVersion` state (and entitlement snapshots) is immutable ([ADR-003](../adr/ADR-003-contract-historical-state.md)).
 - Effective time uses half-open intervals `[effectiveFrom, effectiveUntil)` in UTC-compatible timestamps ([ADR-005](../adr/ADR-005-temporal-model.md)).
 
-## Usage pipeline (Phase 4)
+## Usage pipeline (Phase 5B)
 
-- Topic: `usagecore.usage.received.v1`
+- Topic: `usagecore.usage.received.v1` (DLQ: `usagecore.usage.received.v1.dlq`)
 - Partition key: `tenantId|productKey|meterKey` (ordering within partition; hot-partition trade-off documented in ADR-008)
-- HTTP 202 = Kafka publication acknowledged — not aggregation or quota update
-- No outbox/inbox/dedup yet; consumer processing is not claimed idempotent
+- HTTP 202 = durable PostgreSQL acceptance (ingestion + outbox) — not aggregation or quota update
+- Consumer: `processed_event` inbox + immutable `usage_ledger` keyed by `eventId` ([ADR-010](../adr/ADR-010-consumer-inbox-and-idempotent-processing.md))
+- Delivery remains at-least-once; duplicate redelivery is a successful no-op

@@ -44,8 +44,12 @@ usagecore:
   kafka:
     topics:
       usage-received: usagecore.usage.received.v1
+      usage-received-dlq: usagecore.usage.received.v1.dlq
     consumer-group: usagecore-usage-pipeline-v1
     publish-timeout: 10s
+    consumer-retry:
+      interval-ms: 200
+      max-attempts: 3
   outbox:
     publisher:
       enabled: true

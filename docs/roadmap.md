@@ -38,17 +38,19 @@ Milestones are sequential. Each builds only the workloads it needs.
 - Deterministic partition key `tenantId|productKey|meterKey`
 - Testcontainers Kafka evidence; local KRaft Kafka in Docker Compose
 
-## Phase 5A — Durable ingestion + transactional outbox (current)
+## Phase 5A — Durable ingestion + transactional outbox
 
 - PostgreSQL `usage_ingestion` + `outbox_event` (Flyway V6); HTTP 202 after DB commit
 - Tenant-scoped idempotency key; 409 on same-key/different-payload
 - Asynchronous outbox publisher (`FOR UPDATE SKIP LOCKED`); at-least-once to Kafka
 - [ADR-009](adr/ADR-009-transactional-outbox-ingestion-idempotency.md)
 
-## Phase 5B — Consumer correctness
+## Phase 5B — Consumer correctness (current)
 
-- Consumer inbox / processed-event deduplication
-- Deliberate retry / poison-message behavior
+- Consumer inbox (`processed_event`) + canonical `usage_ledger` (Flyway V7)
+- Idempotent Kafka consumer keyed by `eventId`; duplicate redelivery is a successful no-op
+- Bounded retry + DLQ `usagecore.usage.received.v1.dlq` for poison/non-retryable events
+- [ADR-010](adr/ADR-010-consumer-inbox-and-idempotent-processing.md)
 
 ## Phase 6 — Metering and aggregation
 

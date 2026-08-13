@@ -33,9 +33,13 @@ class UsageIngestionApplicationServiceTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
     private final KafkaProperties kafkaProperties = new KafkaProperties(
-            new KafkaProperties.Topics("usagecore.usage.received.v1"),
+            new KafkaProperties.Topics(
+                    "usagecore.usage.received.v1",
+                    "usagecore.usage.received.v1.dlq"
+            ),
             "usagecore-usage-pipeline-v1",
-            java.time.Duration.ofSeconds(10)
+            java.time.Duration.ofSeconds(10),
+            new KafkaProperties.ConsumerRetry(200L, 3L)
     );
 
     @Test
@@ -147,7 +151,7 @@ class UsageIngestionApplicationServiceTest {
                 )
         );
 
-        assertThatThrownBy(() -> LoggingUsageReceivedProcessor.validateSupportedContract(event))
+        assertThatThrownBy(() -> IdempotentUsageReceivedProcessor.validateSupportedContract(event))
                 .isInstanceOf(UnsupportedUsageEventException.class)
                 .hasMessageContaining("Unsupported eventVersion");
     }
