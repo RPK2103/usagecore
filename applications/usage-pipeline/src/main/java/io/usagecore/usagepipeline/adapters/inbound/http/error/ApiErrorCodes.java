@@ -10,6 +10,7 @@ public final class ApiErrorCodes {
     public static final String SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE";
     public static final String INTERNAL_ERROR = "INTERNAL_ERROR";
     public static final String COMMERCIAL_INVARIANT_VIOLATION = "COMMERCIAL_INVARIANT_VIOLATION";
+    public static final String RECONCILIATION_CONFLICT = "RECONCILIATION_CONFLICT";
 
     private ApiErrorCodes() {
     }

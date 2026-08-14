@@ -16,6 +16,7 @@ Identifiers: UUID internal IDs; stable business keys for Tenant, Product, Featur
 | **Entitlement** | Snapshot of granted feature rights/limits bound to a contract version (frozen on activate). |
 | **MeterDefinition** | Product-scoped meter configuration (`SUM`/`COUNT`/`MAX`, `DAILY`/`MONTHLY`) with explicit Feature binding for quota. |
 | **CommercialPeriod** | Tenant+product commercial accounting window `[period_start, period_end)` with lifecycle `OPEN`→`CLOSING`→`RECONCILING`→`FINALIZED`. Separate from event-time usage windows and from ContractVersion activation. |
+| **ReconciliationRun / ReconciliationItem** | Immutable Phase 8A rebuild/compare/report evidence for a commercial period (MATCH/MISMATCH). Never repairs derived state. |
 
 ## Lifecycle rules
 
@@ -23,6 +24,7 @@ Identifiers: UUID internal IDs; stable business keys for Tenant, Product, Featur
 - **Activated** `ContractVersion`: immutable historical commercial evidence, including entitlement snapshots. ACTIVATED is distinct from temporally effective — effectiveness is derived from `[effectiveFrom, effectiveUntil)`.
 - Changing a **Plan** does not mutate existing activated contracts or their entitlements.
 - **CommercialPeriod** `FINALIZED` is terminal for ordinary usage/quota mutation of that range; Phase 7 finalization is administrative and does not prove reconciliation correctness.
+- Phase 8A reconciliation rebuilds expected commercial aggregates from canonical `usage_ledger` and reports MATCH/MISMATCH without mutating derived state ([ADR-015](../adr/ADR-015-reconciliation-and-deterministic-rebuild.md)).
 - Tenant isolation is mandatory on every association.
 
 ## Relationships (conceptual)
@@ -40,8 +42,8 @@ Plan ──(template reference only)──▶ ContractVersion (at creation/activ
 
 Plan linkage on a version is informational / provenance for how terms were derived. Runtime and audit use activated contract + entitlements, not live plan rows.
 
-Usage windows (`usage_window_aggregate`) remain event-time derived state under meters; commercial period status governs whether ordinary processing may mutate that commercial history ([ADR-014](../adr/ADR-014-commercial-period-lifecycle.md)).
+Usage windows (`usage_window_aggregate`) remain event-time derived state under meters; commercial period status governs whether ordinary processing may mutate that commercial history ([ADR-014](../adr/ADR-014-commercial-period-lifecycle.md)). Reconciliation compares rebuilt expected window state to persisted derived rows ([ADR-015](../adr/ADR-015-reconciliation-and-deterministic-rebuild.md)).
 
 ## Deferred
 
-UsageAdjustment application, reconciliation rebuild, billing exports — later phases.
+UsageAdjustment application / automatic repair / Kafka historical replay / billing exports — Phase 8B+.

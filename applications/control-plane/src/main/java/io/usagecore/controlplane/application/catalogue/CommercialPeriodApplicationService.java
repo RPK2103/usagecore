@@ -33,6 +33,7 @@ public class CommercialPeriodApplicationService {
     private final CurrentPrincipal currentPrincipal;
     private final TenantAccessGuard tenantAccessGuard;
     private final CorrelationIdAccessor correlationIdAccessor;
+    private final ActiveReconciliationProbe activeReconciliationProbe;
     private final Clock clock;
 
     public CommercialPeriodApplicationService(
@@ -42,6 +43,7 @@ public class CommercialPeriodApplicationService {
             CurrentPrincipal currentPrincipal,
             TenantAccessGuard tenantAccessGuard,
             CorrelationIdAccessor correlationIdAccessor,
+            ActiveReconciliationProbe activeReconciliationProbe,
             Clock clock
     ) {
         this.commercialPeriodRepository = commercialPeriodRepository;
@@ -50,6 +52,7 @@ public class CommercialPeriodApplicationService {
         this.currentPrincipal = currentPrincipal;
         this.tenantAccessGuard = tenantAccessGuard;
         this.correlationIdAccessor = correlationIdAccessor;
+        this.activeReconciliationProbe = activeReconciliationProbe;
         this.clock = clock;
     }
 
@@ -172,6 +175,11 @@ public class CommercialPeriodApplicationService {
             Objects.requireNonNull(finalizedByOrNull, "finalizedBy");
             if (finalizedByOrNull.isBlank()) {
                 throw new DomainInvariantException("finalizedBy principal is required");
+            }
+            if (activeReconciliationProbe.hasRunningReconciliation(periodId)) {
+                throw new DomainInvariantException(
+                        "Cannot finalize commercial period while a reconciliation run is RUNNING"
+                );
             }
         }
 

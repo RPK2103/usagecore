@@ -445,6 +445,89 @@ class CommercialPeriodApiIntegrationTest extends AbstractApiIntegrationTest {
         }
     }
 
+    @Test
+    void finalizeBlockedWhileReconciliationRunning() {
+        UUID tenantId = UUID.fromString(createTenant("cp-period-recon-block", "Recon Block"));
+        String productId = createProduct("datapilot-period-recon-block", "DataPilot Recon Block");
+
+        String periodId = givenJson()
+                .body("""
+                        {
+                          "periodStart": "2026-08-01T00:00:00Z",
+                          "periodEnd": "2026-09-01T00:00:00Z"
+                        }
+                        """)
+                .when()
+                .post("/tenants/{tenantId}/products/{productId}/commercial-periods", tenantId, productId)
+                .then()
+                .statusCode(201)
+                .extract()
+                .path("id");
+
+        givenJson()
+                .when()
+                .post("/tenants/{tenantId}/products/{productId}/commercial-periods/{periodId}/closing",
+                        tenantId, productId, periodId)
+                .then()
+                .statusCode(200);
+        givenJson()
+                .when()
+                .post("/tenants/{tenantId}/products/{productId}/commercial-periods/{periodId}/reconciling",
+                        tenantId, productId, periodId)
+                .then()
+                .statusCode(200);
+
+        jdbc.update(
+                """
+                INSERT INTO reconciliation_run (
+                    id, tenant_id, product_id, commercial_period_id, status, result,
+                    started_at, completed_at, started_by,
+                    canonical_event_count, quarantined_event_count,
+                    matched_meter_count, mismatched_meter_count,
+                    correlation_id, failure_reason
+                ) VALUES (?, ?, ?, ?, 'RUNNING', NULL, NOW(), NULL, 'test', NULL, NULL, NULL, NULL, NULL, NULL)
+                """,
+                UUID.randomUUID(),
+                tenantId,
+                UUID.fromString(productId),
+                UUID.fromString(periodId)
+        );
+
+        givenJson()
+                .when()
+                .post("/tenants/{tenantId}/products/{productId}/commercial-periods/{periodId}/finalize",
+                        tenantId, productId, periodId)
+                .then()
+                .statusCode(409)
+                .body("errorCode", equalTo("INVALID_STATE_TRANSITION"));
+
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM commercial_period WHERE id = ?",
+                String.class,
+                UUID.fromString(periodId)
+        )).isEqualTo("RECONCILING");
+
+        int finalizedRows = jdbc.update(
+                """
+                UPDATE commercial_period
+                SET status = 'FINALIZED',
+                    finalized_at = NOW(),
+                    finalized_by = 'race-test',
+                    updated_at = NOW()
+                WHERE id = ?
+                  AND status = 'RECONCILING'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM reconciliation_run
+                      WHERE commercial_period_id = ?
+                        AND status = 'RUNNING'
+                  )
+                """,
+                UUID.fromString(periodId),
+                UUID.fromString(periodId)
+        );
+        assertThat(finalizedRows).isZero();
+    }
+
     private String createProduct(String key, String name) {
         return givenJson()
                 .body("""

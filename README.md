@@ -30,26 +30,25 @@ Shared libraries:
 - [`libraries/database-migrations`](libraries/database-migrations/README.md) — Flyway SQL (Control Plane owns production migrations)
 - [`libraries/event-contracts`](libraries/event-contracts) — versioned Kafka transport envelopes only
 
-## Phase 7 status
+## Phase 8A status
 
-Phase 6C (contract-aware quota) is complete. **Phase 7** adds commercial period lifecycle.
+Phase 7 (commercial period lifecycle) is complete. **Phase 8A** adds deterministic reconciliation reporting.
 
 Three independently deployable applications:
 
 | Application | Responsibility |
 | --- | --- |
-| Control Plane | Catalog / commercial configuration (including MeterDefinition → Feature) + **CommercialPeriod** lifecycle; production Flyway owner |
+| Control Plane | Catalog / commercial configuration (including MeterDefinition → Feature) + **CommercialPeriod** lifecycle; production Flyway owner; blocks FINALIZED while reconciliation is RUNNING |
 | Entitlement Runtime | Authenticated **read-only** entitlement checks against activated snapshots ([ADR-007](docs/adr/ADR-007-entitlement-runtime-read-architecture.md)) |
-| Usage Pipeline | Durable ingestion + outbox + idempotent consumer ledger/aggregates + synchronous quota consume + **commercial-period enforcement** ([ADR-008](docs/adr/ADR-008-kafka-usage-topology.md)–[ADR-014](docs/adr/ADR-014-commercial-period-lifecycle.md)) |
+| Usage Pipeline | Durable ingestion + outbox + idempotent consumer ledger/aggregates + synchronous quota consume + commercial-period enforcement + **reconciliation rebuild/compare/report** ([ADR-008](docs/adr/ADR-008-kafka-usage-topology.md)–[ADR-015](docs/adr/ADR-015-reconciliation-and-deterministic-rebuild.md)) |
 
-Usage Pipeline Phase 7:
+Usage Pipeline Phase 8A:
 
-- Explicit `CommercialPeriod` (`OPEN` → `CLOSING` → `RECONCILING` → `FINALIZED`) separate from event-time usage windows
-- Async consumer: OPEN/CLOSING/NO_PERIOD aggregate normally; RECONCILING/FINALIZED write ledger + `commercial_usage_exception` without aggregate mutation
-- Strict `/usage/consume`: CLOSING/RECONCILING/FINALIZED → `REJECTED` with period reason codes; NO_PERIOD/OPEN preserve Phase 6C
-- HTTP 202 on `/events` unchanged (durable async acceptance — not commercial final acceptance)
-- Manual administrative finalization does **not** claim reconciliation correctness (Phase 8)
-- **No** UsageAdjustment application, billing, or pricing yet
+- Deterministic rebuild from canonical `usage_ledger` for `RECONCILING` / `FINALIZED` periods
+- Observed vs commercially applicable expected totals (quarantined events visible, not silently applied)
+- Immutable `reconciliation_run` / `reconciliation_item` evidence (`MATCH` / `MISMATCH`)
+- **No** aggregate repair, quota rewrite, UsageAdjustment, or Kafka historical replay
+- MATCH does **not** auto-finalize
 
 HTTP 202 on `/events` means durably accepted for asynchronous processing — not that quotas/billing changed.
 

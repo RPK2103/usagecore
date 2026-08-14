@@ -115,6 +115,11 @@ class CommercialPeriodPersistenceAdapter implements CommercialPeriodRepository {
                         updated_at = ?
                     WHERE id = ?
                       AND status = 'RECONCILING'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM reconciliation_run
+                          WHERE commercial_period_id = ?
+                            AND status = 'RUNNING'
+                      )
                     RETURNING id, tenant_id, product_id, period_start, period_end, status,
                               closing_started_at, reconciling_started_at, finalized_at, finalized_by
                     """;
@@ -123,7 +128,7 @@ class CommercialPeriodPersistenceAdapter implements CommercialPeriodRepository {
 
         List<CommercialPeriod> rows = switch (toStatus) {
             case CLOSING, RECONCILING -> jdbcTemplate.query(sql, PERIOD_MAPPER, at, at, id);
-            case FINALIZED -> jdbcTemplate.query(sql, PERIOD_MAPPER, at, finalizedByOrNull, at, id);
+            case FINALIZED -> jdbcTemplate.query(sql, PERIOD_MAPPER, at, finalizedByOrNull, at, id, id);
             case OPEN -> List.of();
         };
         return rows.stream().findFirst();

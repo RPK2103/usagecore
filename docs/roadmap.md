@@ -79,7 +79,7 @@ Milestones are sequential. Each builds only the workloads it needs.
 - `/entitlements/check` remains read-oriented; `/usage/events` remains telemetry without strict quota
 - [ADR-013](adr/ADR-013-contract-aware-quota-enforcement.md)
 
-## Phase 7 — Commercial period lifecycle (current)
+## Phase 7 — Commercial period lifecycle
 
 - Explicit `CommercialPeriod` (`OPEN` → `CLOSING` → `RECONCILING` → `FINALIZED`) — Flyway V11
 - Separate from event-time `UsageWindow`; Control Plane admin API + Usage Pipeline JDBC reader
@@ -89,9 +89,19 @@ Milestones are sequential. Each builds only the workloads it needs.
 - Manual finalization does not prove reconciliation correctness
 - [ADR-014](adr/ADR-014-commercial-period-lifecycle.md)
 
-## Phase 8 — Adjustment / reconciliation (later)
+## Phase 8A — Deterministic rebuild + reconciliation reporting (current)
 
-- UsageAdjustment / reconciliation / replay (as evidenced)
+- Flyway V12: `reconciliation_run` + `reconciliation_item` (immutable completed evidence)
+- Usage Pipeline admin API: read / rebuild / compare / report from canonical `usage_ledger`
+- Observed vs commercially applicable expected totals (quarantine visible, not silently applied)
+- SUM / COUNT / MAX rebuild matches live aggregation semantics; no aggregate/quota repair
+- One active `RUNNING` run per period (partial unique index); FINALIZED blocked while RUNNING
+- MATCH does not auto-finalize
+- [ADR-015](adr/ADR-015-reconciliation-and-deterministic-rebuild.md)
+
+## Phase 8B — Adjustment / repair (later)
+
+- UsageAdjustment application / controlled repair / operational replay (as evidenced)
 
 ## Phase 7B — Tenancy hardening (optional RLS revisit)
 

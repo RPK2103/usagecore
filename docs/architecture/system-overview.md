@@ -8,7 +8,7 @@ UsageCore is a multi-tenant entitlement and usage platform. PostgreSQL is the tr
 | --- | --- |
 | control-plane | Catalog and commercial configuration: Tenant, Product, Feature, Plan, MeterDefinition, Contract, ContractVersion activation, **CommercialPeriod** lifecycle; **production Flyway owner** |
 | entitlement-runtime | Authenticated entitlement checks against activated contract snapshots; decision evidence; no Control Plane compile-time dependency ([ADR-007](../adr/ADR-007-entitlement-runtime-read-architecture.md)) |
-| usage-pipeline | Durable usage ingestion, transactional outbox, idempotent consumer ledger + aggregates, synchronous contract-aware quota consume, **commercial-period enforcement**; no Control Plane / Entitlement Runtime compile-time dependency ([ADR-008](../adr/ADR-008-kafka-usage-topology.md)–[ADR-014](../adr/ADR-014-commercial-period-lifecycle.md)) |
+| usage-pipeline | Durable usage ingestion, transactional outbox, idempotent consumer ledger + aggregates, synchronous contract-aware quota consume, **commercial-period enforcement**, **Phase 8A reconciliation rebuild/compare/report**; no Control Plane / Entitlement Runtime compile-time dependency ([ADR-008](../adr/ADR-008-kafka-usage-topology.md)–[ADR-015](../adr/ADR-015-reconciliation-and-deterministic-rebuild.md)) |
 
 Build only workloads required by the active milestone. No frontend in this repo.
 
@@ -50,7 +50,7 @@ Usage ingestion never accepts `tenantId` from the request body; tenant comes onl
 - Activated `ContractVersion` state (and entitlement snapshots) is immutable ([ADR-003](../adr/ADR-003-contract-historical-state.md)).
 - Effective time uses half-open intervals `[effectiveFrom, effectiveUntil)` in UTC-compatible timestamps ([ADR-005](../adr/ADR-005-temporal-model.md)).
 
-## Usage pipeline (Phase 7)
+## Usage pipeline (Phase 8A)
 
 - Topic: `usagecore.usage.received.v1` (DLQ: `usagecore.usage.received.v1.dlq`)
 - Partition key: `tenantId|productKey|meterKey` (ordering within partition; hot-partition trade-off documented in ADR-008)
@@ -61,5 +61,6 @@ Usage ingestion never accepts `tenantId` from the request body; tenant comes onl
 - Meter → Feature via explicit `MeterDefinition.featureId` for contractual quota
 - Window ownership uses `occurredAt`; late arrivals update historical windows while period is OPEN/CLOSING/NO_PERIOD
 - CommercialPeriod is lifecycle authority; usage windows are not overloaded with finalized flags
+- Phase 8A reconciliation: deterministic rebuild from `usage_ledger` → compare derived window aggregates / quota divergence → immutable report (`reconciliation_run` / `reconciliation_item`). No repair, no Kafka historical replay ([ADR-015](../adr/ADR-015-reconciliation-and-deterministic-rebuild.md))
 - Delivery remains at-least-once; duplicate redelivery is a successful no-op
 - Kafka Streams deferred — PostgreSQL UPSERT retained for transactional correctness with inbox/ledger

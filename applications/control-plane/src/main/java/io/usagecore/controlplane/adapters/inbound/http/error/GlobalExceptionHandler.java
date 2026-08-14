@@ -167,7 +167,8 @@ public class GlobalExceptionHandler {
                 || lower.contains("cannot be published")
                 || lower.contains("cannot be modified")
                 || lower.contains("invalid commercial period transition")
-                || lower.contains("finalized commercial period is terminal")) {
+                || lower.contains("finalized commercial period is terminal")
+                || lower.contains("cannot finalize commercial period while a reconciliation")) {
             return ApiErrorCodes.INVALID_STATE_TRANSITION;
         }
         return ApiErrorCodes.DOMAIN_CONFLICT;

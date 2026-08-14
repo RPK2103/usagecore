@@ -1,6 +1,8 @@
 package io.usagecore.usagepipeline.adapters.inbound.http.error;
 
 import io.usagecore.usagepipeline.application.quota.CommercialInvariantException;
+import io.usagecore.usagepipeline.application.reconciliation.ReconciliationConflictException;
+import io.usagecore.usagepipeline.application.reconciliation.ReconciliationNotFoundException;
 import io.usagecore.usagepipeline.application.security.AuthorizationDeniedException;
 import io.usagecore.usagepipeline.application.usage.IdempotencyConflictException;
 import io.usagecore.usagepipeline.application.usage.UsageAggregateNotFoundException;
@@ -102,6 +104,27 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         return build(HttpStatus.NOT_FOUND, ApiErrorCodes.RESOURCE_NOT_FOUND, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(ReconciliationNotFoundException.class)
+    public ResponseEntity<ApiError> handleReconciliationNotFound(
+            ReconciliationNotFoundException exception,
+            HttpServletRequest request
+    ) {
+        return build(HttpStatus.NOT_FOUND, ApiErrorCodes.RESOURCE_NOT_FOUND, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(ReconciliationConflictException.class)
+    public ResponseEntity<ApiError> handleReconciliationConflict(
+            ReconciliationConflictException exception,
+            HttpServletRequest request
+    ) {
+        return build(
+                HttpStatus.CONFLICT,
+                ApiErrorCodes.RECONCILIATION_CONFLICT,
+                exception.getMessage(),
+                request
+        );
     }
 
     @ExceptionHandler(UsagePublicationException.class)

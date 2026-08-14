@@ -67,6 +67,10 @@ public final class TestJwtSupport {
         return bearerToken("auditor-" + tenantId, List.of("AUDITOR"), tenantId);
     }
 
+    public static String billingOperator(UUID tenantId) {
+        return bearerToken("billing-" + tenantId, List.of("BILLING_OPERATOR"), tenantId);
+    }
+
     public static RSAPublicKey publicKey() {
         try {
             return RSA_KEY.toRSAPublicKey();
