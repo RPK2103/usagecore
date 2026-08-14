@@ -31,6 +31,12 @@ public interface ReconciliationEvidenceReader {
 
     Set<UUID> findQuarantinedEventIds(UUID commercialPeriodId);
 
+    /**
+     * Canonical {@code usage_ledger.event_id} values that have an applied UsageAdjustment
+     * for exceptions belonging to this commercial period.
+     */
+    Set<UUID> findAppliedAdjustmentEventIds(UUID commercialPeriodId);
+
     List<WindowAggregateSnapshot> findWindowAggregatesOverlapping(
             UUID tenantId,
             UUID meterDefinitionId,

@@ -33,7 +33,7 @@ Statuses:
 OPEN → CLOSING → RECONCILING → FINALIZED
 ```
 
-`FINALIZED` is terminal. No unfinalize in Phase 7. Corrections belong to Phase 8 adjustment/reconciliation.
+`FINALIZED` is terminal for ordinary usage/quota mutation. No unfinalize. Phase 8B may apply an explicit `UsageAdjustment` without changing period status ([ADR-016](ADR-016-explicit-usage-adjustments.md)).
 
 ### Ownership
 

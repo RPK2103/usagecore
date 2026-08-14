@@ -30,9 +30,9 @@ Shared libraries:
 - [`libraries/database-migrations`](libraries/database-migrations/README.md) — Flyway SQL (Control Plane owns production migrations)
 - [`libraries/event-contracts`](libraries/event-contracts) — versioned Kafka transport envelopes only
 
-## Phase 8A status
+## Phase 8B status
 
-Phase 7 (commercial period lifecycle) is complete. **Phase 8A** adds deterministic reconciliation reporting.
+Phase 8A (deterministic reconciliation reporting) is complete. **Phase 8B** adds explicit `UsageAdjustment` for quarantined canonical usage.
 
 Three independently deployable applications:
 
@@ -40,15 +40,16 @@ Three independently deployable applications:
 | --- | --- |
 | Control Plane | Catalog / commercial configuration (including MeterDefinition → Feature) + **CommercialPeriod** lifecycle; production Flyway owner; blocks FINALIZED while reconciliation is RUNNING |
 | Entitlement Runtime | Authenticated **read-only** entitlement checks against activated snapshots ([ADR-007](docs/adr/ADR-007-entitlement-runtime-read-architecture.md)) |
-| Usage Pipeline | Durable ingestion + outbox + idempotent consumer ledger/aggregates + synchronous quota consume + commercial-period enforcement + **reconciliation rebuild/compare/report** ([ADR-008](docs/adr/ADR-008-kafka-usage-topology.md)–[ADR-015](docs/adr/ADR-015-reconciliation-and-deterministic-rebuild.md)) |
+| Usage Pipeline | Durable ingestion + outbox + idempotent consumer ledger/aggregates + synchronous quota consume + commercial-period enforcement + reconciliation rebuild/compare/report + **explicit UsageAdjustment** ([ADR-008](docs/adr/ADR-008-kafka-usage-topology.md)–[ADR-016](docs/adr/ADR-016-explicit-usage-adjustments.md)) |
 
-Usage Pipeline Phase 8A:
+Usage Pipeline Phase 8B:
 
-- Deterministic rebuild from canonical `usage_ledger` for `RECONCILING` / `FINALIZED` periods
-- Observed vs commercially applicable expected totals (quarantined events visible, not silently applied)
-- Immutable `reconciliation_run` / `reconciliation_item` evidence (`MATCH` / `MISMATCH`)
-- **No** aggregate repair, quota rewrite, UsageAdjustment, or Kafka historical replay
-- MATCH does **not** auto-finalize
+- `APPLY_QUARANTINED_USAGE` only — contribution derived from `usage_ledger` + meter semantics (no caller-supplied quantity/totals)
+- Allowed on `RECONCILING` / `FINALIZED` against a **COMPLETED** reconciliation run
+- Immutable `usage_adjustment` evidence; `usage_ledger` and `commercial_usage_exception` are not rewritten
+- Atomic PostgreSQL update of lifetime + window aggregates; `quota_state` is not mutated
+- New reconciliation run verifies the result; old runs stay immutable
+- **No** automatic repair, Kafka historical replay, or unfinalize
 
 HTTP 202 on `/events` means durably accepted for asynchronous processing — not that quotas/billing changed.
 
@@ -213,7 +214,7 @@ docker compose -f infrastructure/docker/docker-compose.yml config
 ## Non-goals (current)
 
 - Pricing, invoices, credits, billing exports
-- `UsageAdjustment` application / reconciliation rebuild engine (Phase 8)
+- Compensating/undo UsageAdjustment, automatic exception application, quota repair, Kafka historical replay
 - Automated commercial-period schedulers / tenant-specific timezones
 - Kafka Streams / Schema Registry / Avro
 - Cognito / AWS / Kubernetes

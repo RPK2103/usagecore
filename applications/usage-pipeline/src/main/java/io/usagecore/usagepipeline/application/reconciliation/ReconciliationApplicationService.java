@@ -189,6 +189,7 @@ public class ReconciliationApplicationService {
                 period.periodEnd()
         );
         Set<UUID> quarantined = evidenceReader.findQuarantinedEventIds(period.id());
+        Set<UUID> appliedAdjustments = evidenceReader.findAppliedAdjustmentEventIds(period.id());
 
         List<ReconciliationEvidenceReader.WindowAggregateSnapshot> persisted = meters.stream()
                 .flatMap(meter -> evidenceReader.findWindowAggregatesOverlapping(
@@ -204,6 +205,7 @@ public class ReconciliationApplicationService {
                 meters,
                 ledgerEvents,
                 quarantined,
+                appliedAdjustments,
                 persisted,
                 evidenceReader::findQuotaConsumed
         );
@@ -226,6 +228,8 @@ public class ReconciliationApplicationService {
                         item.actualEventCount(),
                         item.quarantinedEventCount(),
                         item.observedEventCount(),
+                        item.adjustedEventCount(),
+                        item.unresolvedExceptionCount(),
                         item.quotaConsumedValue(),
                         item.status(),
                         item.classification()

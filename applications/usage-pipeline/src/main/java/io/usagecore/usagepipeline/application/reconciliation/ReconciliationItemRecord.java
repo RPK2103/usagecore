@@ -25,6 +25,8 @@ public record ReconciliationItemRecord(
         Long actualEventCount,
         long quarantinedEventCount,
         long observedEventCount,
+        long adjustedEventCount,
+        long unresolvedExceptionCount,
         Long quotaConsumedValue,
         ReconciliationItemStatus status,
         ReconciliationClassification classification

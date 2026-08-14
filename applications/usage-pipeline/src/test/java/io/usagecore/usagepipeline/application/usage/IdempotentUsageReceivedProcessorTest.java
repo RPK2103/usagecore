@@ -417,6 +417,11 @@ class IdempotentUsageReceivedProcessorTest {
         ) {
             return meter.filter(m -> m.productKey().equals(productKey) && m.meterKey().equals(meterKey));
         }
+
+        @Override
+        public Optional<ActiveMeterDefinition> findActiveByMeterDefinitionId(UUID meterDefinitionId) {
+            return meter.filter(m -> m.meterDefinitionId().equals(meterDefinitionId));
+        }
     }
 
     static final class InMemoryUsageAggregateRepository implements UsageAggregateRepository {

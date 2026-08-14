@@ -23,6 +23,10 @@ import org.springframework.stereotype.Component;
  * Meter semantics ({@code aggregationType}, {@code aggregationWindow}) come from the current
  * immutable {@code meter_definition} row. Historical rebuild is deterministic only while
  * semantic meter configuration remains immutable (Phase 6B invariant).
+ * <p>
+ * Phase 8B: quarantined ledger events remain commercially excluded unless a matching
+ * {@code UsageAdjustment} exists. Applied adjustments reclassify the original canonical
+ * event as commercially expected — they do not invent a second contribution.
  */
 @Component
 public class DeterministicRebuildEngine {
@@ -38,6 +42,7 @@ public class DeterministicRebuildEngine {
             List<ReconciliationEvidenceReader.MeterSnapshot> meters,
             List<ReconciliationEvidenceReader.LedgerEventSnapshot> ledgerEvents,
             Set<UUID> quarantinedEventIds,
+            Set<UUID> commerciallyAppliedEventIds,
             List<ReconciliationEvidenceReader.WindowAggregateSnapshot> persistedWindows,
             QuotaLookup quotaLookup
     ) {
@@ -45,6 +50,7 @@ public class DeterministicRebuildEngine {
         Objects.requireNonNull(meters, "meters");
         Objects.requireNonNull(ledgerEvents, "ledgerEvents");
         Objects.requireNonNull(quarantinedEventIds, "quarantinedEventIds");
+        Objects.requireNonNull(commerciallyAppliedEventIds, "commerciallyAppliedEventIds");
         Objects.requireNonNull(persistedWindows, "persistedWindows");
         Objects.requireNonNull(quotaLookup, "quotaLookup");
 
@@ -64,6 +70,8 @@ public class DeterministicRebuildEngine {
         Map<WindowKey, List<ReconciliationEvidenceReader.LedgerEventSnapshot>> observedByWindow = new HashMap<>();
         Map<WindowKey, List<ReconciliationEvidenceReader.LedgerEventSnapshot>> commercialByWindow = new HashMap<>();
         Map<WindowKey, List<ReconciliationEvidenceReader.LedgerEventSnapshot>> quarantinedByWindow = new HashMap<>();
+        Map<WindowKey, List<ReconciliationEvidenceReader.LedgerEventSnapshot>> adjustedByWindow = new HashMap<>();
+        Map<WindowKey, List<ReconciliationEvidenceReader.LedgerEventSnapshot>> unresolvedByWindow = new HashMap<>();
 
         for (ReconciliationEvidenceReader.LedgerEventSnapshot event : ledgerEvents) {
             ReconciliationEvidenceReader.MeterSnapshot meter = metersByKey.get(event.meterKey());
@@ -73,8 +81,16 @@ public class DeterministicRebuildEngine {
             UsageWindow window = usageWindowResolver.resolve(event.occurredAt(), meter.aggregationWindow());
             WindowKey key = new WindowKey(meter.meterDefinitionId(), window.start(), window.end());
             observedByWindow.computeIfAbsent(key, ignored -> new ArrayList<>()).add(event);
-            if (quarantinedEventIds.contains(event.eventId())) {
+            boolean quarantined = quarantinedEventIds.contains(event.eventId());
+            boolean applied = commerciallyAppliedEventIds.contains(event.eventId());
+            if (quarantined) {
                 quarantinedByWindow.computeIfAbsent(key, ignored -> new ArrayList<>()).add(event);
+                if (applied) {
+                    adjustedByWindow.computeIfAbsent(key, ignored -> new ArrayList<>()).add(event);
+                    commercialByWindow.computeIfAbsent(key, ignored -> new ArrayList<>()).add(event);
+                } else {
+                    unresolvedByWindow.computeIfAbsent(key, ignored -> new ArrayList<>()).add(event);
+                }
             } else {
                 commercialByWindow.computeIfAbsent(key, ignored -> new ArrayList<>()).add(event);
             }
@@ -115,6 +131,10 @@ public class DeterministicRebuildEngine {
                     commercialByWindow.getOrDefault(key, List.of());
             List<ReconciliationEvidenceReader.LedgerEventSnapshot> quarantined =
                     quarantinedByWindow.getOrDefault(key, List.of());
+            List<ReconciliationEvidenceReader.LedgerEventSnapshot> adjusted =
+                    adjustedByWindow.getOrDefault(key, List.of());
+            List<ReconciliationEvidenceReader.LedgerEventSnapshot> unresolved =
+                    unresolvedByWindow.getOrDefault(key, List.of());
             ReconciliationEvidenceReader.WindowAggregateSnapshot actual = actualByWindow.get(key);
 
             long observedExpected = aggregate(meter.aggregationType(), observed);
@@ -122,6 +142,8 @@ public class DeterministicRebuildEngine {
             long expectedEventCount = commercial.size();
             long observedEventCount = observed.size();
             long quarantinedCount = quarantined.size();
+            long adjustedCount = adjusted.size();
+            long unresolvedCount = unresolved.size();
 
             Long actualValue = actual == null ? null : actual.aggregateValue();
             Long actualEventCount = actual == null ? null : actual.eventCount();
@@ -162,6 +184,8 @@ public class DeterministicRebuildEngine {
                     actualEventCount,
                     quarantinedCount,
                     observedEventCount,
+                    adjustedCount,
+                    unresolvedCount,
                     quotaConsumed,
                     outcome.status(),
                     outcome.classification()

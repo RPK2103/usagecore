@@ -12,7 +12,7 @@ UsageCore needs an explicit answer to:
 
 > If we reconstruct expected commercial usage from canonical evidence, does it match currently persisted derived state?
 
-Phase 8A must never silently repair derived or finalized commercial state. Corrections belong to Phase 8B (`UsageAdjustment` / repair workflows).
+Phase 8A must never silently repair derived or finalized commercial state. Corrections belong to Phase 8B (`UsageAdjustment` — [ADR-016](ADR-016-explicit-usage-adjustments.md)).
 
 ## Decision
 
@@ -154,12 +154,13 @@ Tenant isolation: platform admin may cross tenants; tenant-bound callers must ma
 
 ### Known limitations / Phase 8B handoff
 
-- No `UsageAdjustment` application
-- No automatic repair / aggregate overwrite / quota rewrite
-- No Kafka operational replay
+Phase 8B implements explicit `UsageAdjustment` (`APPLY_QUARANTINED_USAGE`) — see [ADR-016](ADR-016-explicit-usage-adjustments.md). Still deferred:
+
+- Compensating/undo adjustment and free-form deltas
+- Automatic application of all exceptions / aggregate overwrite / quota rewrite
+- Kafka operational replay
 - No stale-RUNNING leasing
 - Lifetime `usage_aggregate` is not the primary period comparison surface (window aggregates are)
-- Quarantined usage requiring review is evidence for Phase 8B
 
 ## Consequences
 

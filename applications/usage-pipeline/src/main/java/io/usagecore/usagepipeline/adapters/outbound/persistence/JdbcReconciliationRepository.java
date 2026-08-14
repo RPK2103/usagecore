@@ -54,6 +54,8 @@ public class JdbcReconciliationRepository implements ReconciliationRepository {
             rs.getObject("actual_event_count") == null ? null : rs.getLong("actual_event_count"),
             rs.getLong("quarantined_event_count"),
             rs.getLong("observed_event_count"),
+            rs.getLong("adjusted_event_count"),
+            rs.getLong("unresolved_exception_count"),
             rs.getObject("quota_consumed_value") == null ? null : rs.getLong("quota_consumed_value"),
             ReconciliationItemStatus.valueOf(rs.getString("status")),
             ReconciliationClassification.valueOf(rs.getString("classification"))
@@ -128,9 +130,10 @@ public class JdbcReconciliationRepository implements ReconciliationRepository {
                         window_start, window_end,
                         observed_expected_value, commercial_expected_value, actual_value, difference,
                         expected_event_count, actual_event_count,
-                        quarantined_event_count, observed_event_count, quota_consumed_value,
+                        quarantined_event_count, observed_event_count,
+                        adjusted_event_count, unresolved_exception_count, quota_consumed_value,
                         status, classification
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     item.id(),
                     item.reconciliationRunId(),
@@ -147,6 +150,8 @@ public class JdbcReconciliationRepository implements ReconciliationRepository {
                     item.actualEventCount(),
                     item.quarantinedEventCount(),
                     item.observedEventCount(),
+                    item.adjustedEventCount(),
+                    item.unresolvedExceptionCount(),
                     item.quotaConsumedValue(),
                     item.status().name(),
                     item.classification().name()
@@ -210,6 +215,25 @@ public class JdbcReconciliationRepository implements ReconciliationRepository {
     }
 
     @Override
+    public Optional<ReconciliationRunRecord> findRunByIdForUpdate(UUID runId) {
+        List<ReconciliationRunRecord> rows = jdbcTemplate.query(
+                """
+                SELECT id, tenant_id, product_id, commercial_period_id, status, result,
+                       started_at, completed_at, started_by,
+                       canonical_event_count, quarantined_event_count,
+                       matched_meter_count, mismatched_meter_count,
+                       correlation_id, failure_reason
+                FROM reconciliation_run
+                WHERE id = ?
+                FOR UPDATE
+                """,
+                RUN_MAPPER,
+                runId
+        );
+        return rows.stream().findFirst();
+    }
+
+    @Override
     public List<ReconciliationItemRecord> findItemsByRunId(UUID runId) {
         return jdbcTemplate.query(
                 """
@@ -217,7 +241,8 @@ public class JdbcReconciliationRepository implements ReconciliationRepository {
                        window_start, window_end,
                        observed_expected_value, commercial_expected_value, actual_value, difference,
                        expected_event_count, actual_event_count,
-                       quarantined_event_count, observed_event_count, quota_consumed_value,
+                       quarantined_event_count, observed_event_count,
+                       adjusted_event_count, unresolved_exception_count, quota_consumed_value,
                        status, classification
                 FROM reconciliation_item
                 WHERE reconciliation_run_id = ?

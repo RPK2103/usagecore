@@ -20,6 +20,8 @@ public record ReconciliationItemResponse(
         Long actualEventCount,
         long quarantinedEventCount,
         long observedEventCount,
+        long adjustedEventCount,
+        long unresolvedExceptionCount,
         Long quotaConsumedValue,
         String status,
         String classification
@@ -42,6 +44,8 @@ public record ReconciliationItemResponse(
                 item.actualEventCount(),
                 item.quarantinedEventCount(),
                 item.observedEventCount(),
+                item.adjustedEventCount(),
+                item.unresolvedExceptionCount(),
                 item.quotaConsumedValue(),
                 item.status().name(),
                 item.classification().name()

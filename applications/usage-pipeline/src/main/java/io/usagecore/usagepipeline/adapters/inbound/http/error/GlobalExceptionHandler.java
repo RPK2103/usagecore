@@ -1,5 +1,7 @@
 package io.usagecore.usagepipeline.adapters.inbound.http.error;
 
+import io.usagecore.usagepipeline.application.adjustment.AdjustmentConflictException;
+import io.usagecore.usagepipeline.application.adjustment.AdjustmentNotFoundException;
 import io.usagecore.usagepipeline.application.quota.CommercialInvariantException;
 import io.usagecore.usagepipeline.application.reconciliation.ReconciliationConflictException;
 import io.usagecore.usagepipeline.application.reconciliation.ReconciliationNotFoundException;
@@ -80,7 +82,7 @@ public class GlobalExceptionHandler {
         return build(
                 HttpStatus.CONFLICT,
                 ApiErrorCodes.IDEMPOTENCY_CONFLICT,
-                "Idempotency key already used with a different usage payload",
+                exception.getMessage(),
                 request
         );
     }
@@ -125,6 +127,22 @@ public class GlobalExceptionHandler {
                 exception.getMessage(),
                 request
         );
+    }
+
+    @ExceptionHandler(AdjustmentNotFoundException.class)
+    public ResponseEntity<ApiError> handleAdjustmentNotFound(
+            AdjustmentNotFoundException exception,
+            HttpServletRequest request
+    ) {
+        return build(HttpStatus.NOT_FOUND, ApiErrorCodes.RESOURCE_NOT_FOUND, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(AdjustmentConflictException.class)
+    public ResponseEntity<ApiError> handleAdjustmentConflict(
+            AdjustmentConflictException exception,
+            HttpServletRequest request
+    ) {
+        return build(HttpStatus.CONFLICT, exception.errorCode(), exception.getMessage(), request);
     }
 
     @ExceptionHandler(UsagePublicationException.class)

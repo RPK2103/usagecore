@@ -31,6 +31,24 @@ public class JdbcMeterDefinitionLookup implements MeterDefinitionLookup {
             AggregationWindow.valueOf(rs.getString("aggregation_window"))
     );
 
+    private static final String FIND_ACTIVE_BY_ID = """
+            SELECT
+                md.id AS meter_definition_id,
+                p.id AS product_id,
+                p.product_key AS product_key,
+                md.meter_key AS meter_key,
+                f.id AS feature_id,
+                f.feature_key AS feature_key,
+                md.aggregation_type AS aggregation_type,
+                md.aggregation_window AS aggregation_window
+            FROM meter_definition md
+            INNER JOIN product p ON p.id = md.product_id
+            LEFT JOIN feature f ON f.id = md.feature_id AND f.product_id = p.id
+            WHERE md.id = ?
+              AND md.status = 'ACTIVE'
+              AND p.status = 'ACTIVE'
+            """;
+
     private static final String FIND_ACTIVE = """
             SELECT
                 md.id AS meter_definition_id,
@@ -59,6 +77,12 @@ public class JdbcMeterDefinitionLookup implements MeterDefinitionLookup {
     @Override
     public Optional<ActiveMeterDefinition> findActiveByProductKeyAndMeterKey(String productKey, String meterKey) {
         List<ActiveMeterDefinition> rows = jdbcTemplate.query(FIND_ACTIVE, ROW_MAPPER, productKey, meterKey);
+        return rows.stream().findFirst();
+    }
+
+    @Override
+    public Optional<ActiveMeterDefinition> findActiveByMeterDefinitionId(java.util.UUID meterDefinitionId) {
+        List<ActiveMeterDefinition> rows = jdbcTemplate.query(FIND_ACTIVE_BY_ID, ROW_MAPPER, meterDefinitionId);
         return rows.stream().findFirst();
     }
 }

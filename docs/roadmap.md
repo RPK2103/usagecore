@@ -89,7 +89,7 @@ Milestones are sequential. Each builds only the workloads it needs.
 - Manual finalization does not prove reconciliation correctness
 - [ADR-014](adr/ADR-014-commercial-period-lifecycle.md)
 
-## Phase 8A — Deterministic rebuild + reconciliation reporting (current)
+## Phase 8A — Deterministic rebuild + reconciliation reporting
 
 - Flyway V12: `reconciliation_run` + `reconciliation_item` (immutable completed evidence)
 - Usage Pipeline admin API: read / rebuild / compare / report from canonical `usage_ledger`
@@ -99,9 +99,14 @@ Milestones are sequential. Each builds only the workloads it needs.
 - MATCH does not auto-finalize
 - [ADR-015](adr/ADR-015-reconciliation-and-deterministic-rebuild.md)
 
-## Phase 8B — Adjustment / repair (later)
+## Phase 8B — Explicit UsageAdjustment (current)
 
-- UsageAdjustment application / controlled repair / operational replay (as evidenced)
+- Flyway V13: `usage_adjustment` (append-oriented) + reconciliation item adjusted/unresolved counts
+- `APPLY_QUARANTINED_USAGE` only; contribution derived from canonical ledger + meter semantics
+- Allowed for `RECONCILING` / `FINALIZED` against COMPLETED reconciliation evidence
+- Atomic aggregate correction; `quota_state` untouched; no Kafka republish
+- Rebuild includes applied adjustments; old reconciliation runs remain immutable
+- [ADR-016](adr/ADR-016-explicit-usage-adjustments.md)
 
 ## Phase 7B — Tenancy hardening (optional RLS revisit)
 

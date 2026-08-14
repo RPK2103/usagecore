@@ -154,6 +154,21 @@ public class JdbcReconciliationEvidenceReader implements ReconciliationEvidenceR
     }
 
     @Override
+    public Set<UUID> findAppliedAdjustmentEventIds(UUID commercialPeriodId) {
+        List<UUID> ids = jdbcTemplate.query(
+                """
+                SELECT source_event_id
+                FROM usage_adjustment
+                WHERE commercial_period_id = ?
+                  AND adjustment_type = 'APPLY_QUARANTINED_USAGE'
+                """,
+                (rs, rowNum) -> rs.getObject("source_event_id", UUID.class),
+                commercialPeriodId
+        );
+        return new HashSet<>(ids);
+    }
+
+    @Override
     public List<WindowAggregateSnapshot> findWindowAggregatesOverlapping(
             UUID tenantId,
             UUID meterDefinitionId,

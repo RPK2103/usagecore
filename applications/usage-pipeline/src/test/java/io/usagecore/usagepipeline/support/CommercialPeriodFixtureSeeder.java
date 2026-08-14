@@ -72,6 +72,9 @@ public final class CommercialPeriodFixtureSeeder {
     }
 
     public void clearCommercialTables() {
+        jdbc.update("DELETE FROM usage_adjustment");
+        jdbc.update("DELETE FROM reconciliation_item");
+        jdbc.update("DELETE FROM reconciliation_run");
         jdbc.update("DELETE FROM commercial_usage_exception");
         jdbc.update("DELETE FROM commercial_period_transition");
         jdbc.update("DELETE FROM commercial_period");

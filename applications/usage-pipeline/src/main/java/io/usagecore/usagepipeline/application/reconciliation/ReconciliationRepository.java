@@ -20,6 +20,8 @@ public interface ReconciliationRepository {
 
     Optional<ReconciliationRunRecord> findRunByIdAndTenantId(UUID runId, UUID tenantId);
 
+    Optional<ReconciliationRunRecord> findRunByIdForUpdate(UUID runId);
+
     List<ReconciliationItemRecord> findItemsByRunId(UUID runId);
 
     boolean existsRunningForPeriod(UUID commercialPeriodId);
