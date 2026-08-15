@@ -2,8 +2,11 @@ package io.usagecore.usagepipeline.adapters.inbound.messaging;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.Timer;
 import io.usagecore.events.EventEnvelope;
 import io.usagecore.events.usage.UsageReceivedPayload;
+import io.usagecore.usagepipeline.adapters.observability.ObservabilityMdc;
+import io.usagecore.usagepipeline.application.observability.UsagePipelineMetrics;
 import io.usagecore.usagepipeline.application.usage.InvalidUsageEventException;
 import io.usagecore.usagepipeline.application.usage.UnknownUsageMeterException;
 import io.usagecore.usagepipeline.application.usage.UnsupportedUsageEventException;
@@ -26,20 +29,25 @@ import org.springframework.stereotype.Component;
 @Component
 public class UsageReceivedKafkaListener {
 
+    public static final String PROCESS_SPAN = "usage.process";
+
     private static final Logger log = LoggerFactory.getLogger(UsageReceivedKafkaListener.class);
 
     private final ObjectMapper objectMapper;
     private final UsageReceivedProcessor usageReceivedProcessor;
     private final KafkaProperties kafkaProperties;
+    private final UsagePipelineMetrics metrics;
 
     public UsageReceivedKafkaListener(
             ObjectMapper objectMapper,
             UsageReceivedProcessor usageReceivedProcessor,
-            KafkaProperties kafkaProperties
+            KafkaProperties kafkaProperties,
+            UsagePipelineMetrics metrics
     ) {
         this.objectMapper = objectMapper;
         this.usageReceivedProcessor = usageReceivedProcessor;
         this.kafkaProperties = kafkaProperties;
+        this.metrics = metrics;
     }
 
     @KafkaListener(
@@ -59,10 +67,12 @@ public class UsageReceivedKafkaListener {
                     record.offset(),
                     ex
             );
+            metrics.recordUsageProcessed(UsagePipelineMetrics.RESULT_REJECTED_INVALID);
             throw new InvalidUsageEventException("Failed to deserialize UsageReceived event");
         }
 
         if (event == null) {
+            metrics.recordUsageProcessed(UsagePipelineMetrics.RESULT_REJECTED_INVALID);
             throw new InvalidUsageEventException("Deserialized UsageReceived envelope was null");
         }
 
@@ -76,9 +86,22 @@ public class UsageReceivedKafkaListener {
                 event.eventId()
         );
 
-        try {
+        Timer.Sample sample = metrics.startTimer();
+        try (ObservabilityMdc.Scope correlation = ObservabilityMdc.open(
+                ObservabilityMdc.CORRELATION_ID,
+                event.correlationId()
+        );
+             ObservabilityMdc.Scope eventId = ObservabilityMdc.open(
+                     ObservabilityMdc.EVENT_ID,
+                     event.eventId() == null ? null : event.eventId().toString()
+             );
+             ObservabilityMdc.Scope tenant = ObservabilityMdc.open(
+                     ObservabilityMdc.TENANT_ID,
+                     event.tenantId() == null ? null : event.tenantId().toString()
+             )) {
             usageReceivedProcessor.process(event);
         } catch (UnsupportedUsageEventException | InvalidUsageEventException | UnknownUsageMeterException ex) {
+            metrics.recordUsageProcessed(UsagePipelineMetrics.RESULT_REJECTED_INVALID);
             throw ex;
         } catch (RuntimeException ex) {
             log.error(
@@ -91,6 +114,8 @@ public class UsageReceivedKafkaListener {
                     ex
             );
             throw ex;
+        } finally {
+            metrics.stopTimer(sample, UsagePipelineMetrics.USAGE_PROCESS_DURATION);
         }
     }
 }

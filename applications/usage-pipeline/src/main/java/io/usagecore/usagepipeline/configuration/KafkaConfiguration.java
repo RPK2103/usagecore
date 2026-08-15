@@ -1,9 +1,11 @@
 package io.usagecore.usagepipeline.configuration;
 
+import io.usagecore.usagepipeline.application.observability.UsagePipelineMetrics;
 import io.usagecore.usagepipeline.application.usage.InvalidUsageEventException;
 import io.usagecore.usagepipeline.application.usage.UnknownUsageMeterException;
 import io.usagecore.usagepipeline.application.usage.UnsupportedUsageEventException;
 import org.apache.kafka.clients.admin.NewTopic;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,6 +14,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.CommonErrorHandler;
+import org.springframework.kafka.listener.ConsumerRecordRecoverer;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.FixedBackOff;
@@ -48,12 +51,24 @@ public class KafkaConfiguration {
     @Bean
     CommonErrorHandler kafkaErrorHandler(
             KafkaTemplate<Object, Object> kafkaTemplate,
-            KafkaProperties kafkaProperties
+            KafkaProperties kafkaProperties,
+            UsagePipelineMetrics metrics
     ) {
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
                 kafkaTemplate,
                 (record, ex) -> new TopicPartition(kafkaProperties.topics().usageReceivedDlq(), record.partition())
         );
+
+        ConsumerRecordRecoverer instrumented = (ConsumerRecord<?, ?> record, Exception ex) -> {
+            String reason = nonRetryable(ex) ? "non_retryable" : "retry_exhausted";
+            try {
+                recoverer.accept(record, ex);
+                metrics.recordDlq(reason);
+            } catch (RuntimeException publishEx) {
+                metrics.recordDlq("recoverer_failure");
+                throw publishEx;
+            }
+        };
 
         long maxAttempts = Math.max(1L, kafkaProperties.consumerRetry().maxAttempts());
         long retriesAfterFirst = Math.max(0L, maxAttempts - 1L);
@@ -62,7 +77,7 @@ public class KafkaConfiguration {
                 retriesAfterFirst
         );
 
-        DefaultErrorHandler errorHandler = new DefaultErrorHandler(recoverer, backOff);
+        DefaultErrorHandler errorHandler = new DefaultErrorHandler(instrumented, backOff);
         errorHandler.addNotRetryableExceptions(
                 UnsupportedUsageEventException.class,
                 InvalidUsageEventException.class,
@@ -80,5 +95,18 @@ public class KafkaConfiguration {
                 )
         );
         return errorHandler;
+    }
+
+    private static boolean nonRetryable(Exception ex) {
+        Throwable current = ex;
+        while (current != null) {
+            if (current instanceof UnsupportedUsageEventException
+                    || current instanceof InvalidUsageEventException
+                    || current instanceof UnknownUsageMeterException) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 }

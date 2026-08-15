@@ -13,6 +13,7 @@ import io.usagecore.usagepipeline.application.commercial.CommercialPeriodView;
 import io.usagecore.usagepipeline.application.commercial.CommercialUsageExceptionReasons;
 import io.usagecore.usagepipeline.application.commercial.CommercialUsageExceptionRecord;
 import io.usagecore.usagepipeline.application.commercial.CommercialUsageExceptionRepository;
+import io.usagecore.usagepipeline.application.observability.UsagePipelineMetrics;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -279,7 +280,8 @@ class IdempotentUsageReceivedProcessorTest {
                 new UsageWindowResolver(),
                 (tenantId, productId, occurredAt) -> Optional.empty(),
                 new InMemoryCommercialUsageExceptionRepository(),
-                Clock.fixed(FIXED, ZoneOffset.UTC)
+                Clock.fixed(FIXED, ZoneOffset.UTC),
+                new UsagePipelineMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry())
         );
     }
 
@@ -301,7 +303,8 @@ class IdempotentUsageReceivedProcessorTest {
                 new UsageWindowResolver(),
                 periodReader,
                 exceptions,
-                Clock.fixed(FIXED, ZoneOffset.UTC)
+                Clock.fixed(FIXED, ZoneOffset.UTC),
+                new UsagePipelineMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry())
         );
     }
 
@@ -566,6 +569,11 @@ class IdempotentUsageReceivedProcessorTest {
 
         @Override
         public long countAll() {
+            return byEventId.size();
+        }
+
+        @Override
+        public long countUnresolved() {
             return byEventId.size();
         }
     }

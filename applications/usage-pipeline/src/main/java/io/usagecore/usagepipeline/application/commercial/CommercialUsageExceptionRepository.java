@@ -14,4 +14,10 @@ public interface CommercialUsageExceptionRepository {
     long countByEventId(UUID eventId);
 
     long countAll();
+
+    /**
+     * Exceptions that do not yet have an applied {@code usage_adjustment}.
+     * Scrape-time gauge only — not a commercial correctness query.
+     */
+    long countUnresolved();
 }

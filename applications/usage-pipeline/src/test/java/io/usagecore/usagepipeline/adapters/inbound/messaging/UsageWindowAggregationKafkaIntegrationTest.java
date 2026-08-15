@@ -37,6 +37,7 @@ class UsageWindowAggregationKafkaIntegrationTest extends AbstractIdempotentConsu
     @DynamicPropertySource
     static void kafkaProps(DynamicPropertyRegistry registry) {
         registry.add("usagecore.kafka.consumer-group", () -> "usagecore-usage-pipeline-v1-window-kafka-test");
+        registry.add("spring.kafka.consumer.auto-offset-reset", () -> "latest");
     }
 
     @Autowired

@@ -30,9 +30,9 @@ Shared libraries:
 - [`libraries/database-migrations`](libraries/database-migrations/README.md) — Flyway SQL (Control Plane owns production migrations)
 - [`libraries/event-contracts`](libraries/event-contracts) — versioned Kafka transport envelopes only
 
-## Phase 8B status
+## Phase 9A status
 
-Phase 8A (deterministic reconciliation reporting) is complete. **Phase 8B** adds explicit `UsageAdjustment` for quarantined canonical usage.
+Phase 8B (explicit UsageAdjustment) is complete. **Phase 9A** adds a coherent observability foundation: Micrometer/Prometheus metrics, OpenTelemetry tracing, structured logs, and correlation across HTTP → outbox → Kafka → consumer.
 
 Three independently deployable applications:
 
@@ -40,7 +40,7 @@ Three independently deployable applications:
 | --- | --- |
 | Control Plane | Catalog / commercial configuration (including MeterDefinition → Feature) + **CommercialPeriod** lifecycle; production Flyway owner; blocks FINALIZED while reconciliation is RUNNING |
 | Entitlement Runtime | Authenticated **read-only** entitlement checks against activated snapshots ([ADR-007](docs/adr/ADR-007-entitlement-runtime-read-architecture.md)) |
-| Usage Pipeline | Durable ingestion + outbox + idempotent consumer ledger/aggregates + synchronous quota consume + commercial-period enforcement + reconciliation rebuild/compare/report + **explicit UsageAdjustment** ([ADR-008](docs/adr/ADR-008-kafka-usage-topology.md)–[ADR-016](docs/adr/ADR-016-explicit-usage-adjustments.md)) |
+| Usage Pipeline | Durable ingestion + outbox + idempotent consumer ledger/aggregates + synchronous quota consume + commercial-period enforcement + reconciliation rebuild/compare/report + explicit UsageAdjustment + **Phase 9A observability** ([ADR-008](docs/adr/ADR-008-kafka-usage-topology.md)–[ADR-017](docs/adr/ADR-017-observability-architecture.md)) |
 
 Usage Pipeline Phase 8B:
 
@@ -56,10 +56,10 @@ HTTP 202 on `/events` means durably accepted for asynchronous processing — not
 ## Prerequisites
 
 - Java 21 JDK
-- Docker (for local PostgreSQL, Keycloak, Kafka, and Testcontainers)
+- Docker (for local PostgreSQL, Keycloak, Kafka, Prometheus, OTel Collector, and Testcontainers)
 - Maven Wrapper (included; no system Maven required)
 
-## Local PostgreSQL + Keycloak + Kafka
+## Local PostgreSQL + Keycloak + Kafka + observability scrapers
 
 Credentials in Compose are **local development only**, not for production.
 
@@ -72,6 +72,8 @@ docker compose -f infrastructure/docker/docker-compose.yml up -d
 | PostgreSQL | `localhost:5432` |
 | Keycloak | `http://localhost:8081` (admin / admin) |
 | Kafka (KRaft single broker) | `localhost:9092` |
+| Prometheus | `http://localhost:9090` (scrapes host apps via `host.docker.internal`) |
+| OTel Collector | OTLP HTTP `localhost:4318` (debug exporter; no trace UI in 9A) |
 | Realm | `usagecore` |
 
 Defaults when running apps:
@@ -83,6 +85,8 @@ Defaults when running apps:
 | `USAGECORE_DB_PASSWORD` | `usagecore` |
 | `USAGECORE_JWK_SET_URI` | `http://localhost:8081/realms/usagecore/protocol/openid-connect/certs` |
 | `USAGECORE_KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` |
+| `USAGECORE_OTLP_ENABLED` | `false` (set `true` with `SPRING_PROFILES_ACTIVE=local`) |
+| `USAGECORE_OTLP_ENDPOINT` | `http://localhost:4318/v1/traces` |
 
 ### Demo users (local/demo-only)
 
@@ -138,11 +142,13 @@ curl -s -X POST "http://localhost:8081/realms/usagecore/protocol/openid-connect/
 ./mvnw -pl applications/usage-pipeline -am spring-boot:run
 ```
 
-| App | Health |
-| --- | --- |
-| Control Plane | `http://localhost:8080/actuator/health` |
-| Entitlement Runtime | `http://localhost:8082/actuator/health` |
-| Usage Pipeline | `http://localhost:8083/actuator/health` |
+| App | Health | Prometheus |
+| --- | --- | --- |
+| Control Plane | `http://localhost:8080/actuator/health` | `http://localhost:8080/actuator/prometheus` |
+| Entitlement Runtime | `http://localhost:8082/actuator/health` | `http://localhost:8082/actuator/prometheus` |
+| Usage Pipeline | `http://localhost:8083/actuator/health` | `http://localhost:8083/actuator/prometheus` |
+
+Usage Pipeline readiness depends on PostgreSQL, not Kafka. Observability: [ADR-017](docs/adr/ADR-017-observability-architecture.md), [metrics catalogue](docs/observability/metrics.md), [local setup](docs/observability/local-observability.md). Grafana dashboards are Phase 9B.
 
 ## Authenticated local demos (curl)
 
@@ -221,5 +227,6 @@ docker compose -f infrastructure/docker/docker-compose.yml config
 - Redis, MongoDB, Elasticsearch, GraphQL, service mesh
 - AI / LLM components
 - Frontend UI
+- Grafana operational dashboards / alert rules (Phase 9B)
 - Production-ready / exactly-once claims
 - Claims that Phase 7 finalization proves reconciled aggregate correctness

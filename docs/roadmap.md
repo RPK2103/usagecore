@@ -99,7 +99,7 @@ Milestones are sequential. Each builds only the workloads it needs.
 - MATCH does not auto-finalize
 - [ADR-015](adr/ADR-015-reconciliation-and-deterministic-rebuild.md)
 
-## Phase 8B — Explicit UsageAdjustment (current)
+## Phase 8B — Explicit UsageAdjustment
 
 - Flyway V13: `usage_adjustment` (append-oriented) + reconciliation item adjusted/unresolved counts
 - `APPLY_QUARANTINED_USAGE` only; contribution derived from canonical ledger + meter semantics
@@ -108,14 +108,25 @@ Milestones are sequential. Each builds only the workloads it needs.
 - Rebuild includes applied adjustments; old reconciliation runs remain immutable
 - [ADR-016](adr/ADR-016-explicit-usage-adjustments.md)
 
+## Phase 9A — Structured observability (current)
+
+- Micrometer + Prometheus + OpenTelemetry (W3C) across all three workloads
+- Structured logs with `correlationId` / `traceId` / `spanId`; correlation remains distinct from trace id
+- HTTP → outbox envelope → Kafka `traceparent` → consumer MDC continuation
+- Bounded-cardinality business metrics (outbox, usage processing, quota, entitlement, commercial period, reconciliation, adjustment)
+- Actuator `health` / `info` / `prometheus`; Usage Pipeline readiness is PostgreSQL, not Kafka
+- Local Prometheus + OTel Collector in Docker Compose; Grafana dashboards deferred
+- [ADR-017](adr/ADR-017-observability-architecture.md)
+
 ## Phase 7B — Tenancy hardening (optional RLS revisit)
 
 - Revisit PostgreSQL RLS with proven session handling ([ADR-006](adr/ADR-006-postgresql-rls.md))
 - Expand audit of commercial-state access as needed
 
-## Phase 9+ — Operability
+## Phase 9B+ — Operability
 
-- Observability (OpenTelemetry / Prometheus as needed), deploy packaging, load/failure drills
+- Grafana dashboards, alert rules, SLO-style operating views, runbooks
+- Deploy packaging, load/failure drills (Phase 10+)
 - No “production-ready” claim without recorded evidence
 
 ## Explicit deferrals

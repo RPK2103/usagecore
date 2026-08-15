@@ -1,6 +1,7 @@
 package io.usagecore.usagepipeline.application.adjustment;
 
 import io.usagecore.usagepipeline.application.commercial.CommercialPeriodStatus;
+import io.usagecore.usagepipeline.application.observability.UsagePipelineMetrics;
 import io.usagecore.usagepipeline.application.reconciliation.ReconciliationEvidenceReader;
 import io.usagecore.usagepipeline.application.reconciliation.ReconciliationNotFoundException;
 import io.usagecore.usagepipeline.application.reconciliation.ReconciliationRepository;
@@ -55,6 +56,7 @@ public class UsageAdjustmentApplicationService {
     private final CurrentPrincipal currentPrincipal;
     private final CorrelationIdAccessor correlationIdAccessor;
     private final Clock clock;
+    private final UsagePipelineMetrics metrics;
 
     public UsageAdjustmentApplicationService(
             UsageAdjustmentRepository adjustmentRepository,
@@ -66,7 +68,8 @@ public class UsageAdjustmentApplicationService {
             UsageWindowResolver usageWindowResolver,
             CurrentPrincipal currentPrincipal,
             CorrelationIdAccessor correlationIdAccessor,
-            Clock clock
+            Clock clock,
+            UsagePipelineMetrics metrics
     ) {
         this.adjustmentRepository = adjustmentRepository;
         this.reconciliationRepository = reconciliationRepository;
@@ -78,10 +81,31 @@ public class UsageAdjustmentApplicationService {
         this.currentPrincipal = currentPrincipal;
         this.correlationIdAccessor = correlationIdAccessor;
         this.clock = clock;
+        this.metrics = metrics;
     }
 
     @Transactional
     public UsageAdjustmentRecord applyQuarantinedUsage(UUID runId, UUID exceptionId, String idempotencyKey, String reason) {
+        io.micrometer.core.instrument.Timer.Sample sample = metrics.startTimer();
+        try {
+            return applyQuarantinedUsageInternal(runId, exceptionId, idempotencyKey, reason);
+        } catch (AdjustmentConflictException | IdempotencyConflictException ex) {
+            metrics.recordAdjustment(UsagePipelineMetrics.RESULT_CONFLICT);
+            throw ex;
+        } catch (AdjustmentNotFoundException ex) {
+            metrics.recordAdjustment(UsagePipelineMetrics.RESULT_REJECTED);
+            throw ex;
+        } finally {
+            metrics.stopTimer(sample, UsagePipelineMetrics.USAGE_ADJUSTMENT_DURATION);
+        }
+    }
+
+    private UsageAdjustmentRecord applyQuarantinedUsageInternal(
+            UUID runId,
+            UUID exceptionId,
+            String idempotencyKey,
+            String reason
+    ) {
         Objects.requireNonNull(runId, "runId");
         Objects.requireNonNull(exceptionId, "exceptionId");
         AuthenticatedPrincipal principal = currentPrincipal.require();
@@ -146,7 +170,14 @@ public class UsageAdjustmentApplicationService {
         Optional<UsageAdjustmentRecord> byKey =
                 adjustmentRepository.findByTenantIdAndIdempotencyKey(run.tenantId(), normalizedKey);
         if (byKey.isPresent()) {
-            return replayOrConflict(byKey.get(), runId, exceptionId, normalizedReason);
+            UsageAdjustmentRecord replayed = replayOrConflict(byKey.get(), runId, exceptionId, normalizedReason);
+            metrics.recordAdjustment(UsagePipelineMetrics.RESULT_REPLAY);
+            log.info(
+                    "UsageAdjustment replayed. adjustmentId={} correlationId={}",
+                    replayed.id(),
+                    replayed.correlationId()
+            );
+            return replayed;
         }
         Optional<UsageAdjustmentRecord> byException =
                 adjustmentRepository.findByCommercialUsageExceptionId(exceptionId);
@@ -221,7 +252,9 @@ public class UsageAdjustmentApplicationService {
             Optional<UsageAdjustmentRecord> racedKey =
                     adjustmentRepository.findByTenantIdAndIdempotencyKey(run.tenantId(), normalizedKey);
             if (racedKey.isPresent()) {
-                return replayOrConflict(racedKey.get(), runId, exceptionId, normalizedReason);
+                UsageAdjustmentRecord replayed = replayOrConflict(racedKey.get(), runId, exceptionId, normalizedReason);
+                metrics.recordAdjustment(UsagePipelineMetrics.RESULT_REPLAY);
+                return replayed;
             }
             Optional<UsageAdjustmentRecord> racedException =
                     adjustmentRepository.findByCommercialUsageExceptionId(exceptionId);
@@ -229,6 +262,7 @@ public class UsageAdjustmentApplicationService {
                 if (racedException.get().idempotencyKey().equals(normalizedKey)
                         && racedException.get().reconciliationRunId().equals(runId)
                         && racedException.get().reason().equals(normalizedReason)) {
+                    metrics.recordAdjustment(UsagePipelineMetrics.RESULT_REPLAY);
                     return racedException.get();
                 }
                 throw new AdjustmentConflictException(
@@ -269,6 +303,8 @@ public class UsageAdjustmentApplicationService {
                 correlationId,
                 meter.aggregationType()
         );
+        metrics.recordAdjustment(UsagePipelineMetrics.RESULT_APPLIED);
+        metrics.recordAggregateUpdate(meter.aggregationType().name());
         return pending;
     }
 

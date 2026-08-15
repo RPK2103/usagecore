@@ -1,0 +1,25 @@
+# Minimal local OpenTelemetry Collector for Phase 9A trace export validation.
+# Receives OTLP and writes to the debug/logging exporter.
+# Trace UI / persistence is Phase 9B.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  debug:
+    verbosity: basic
+
+processors:
+  batch: {}
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug]

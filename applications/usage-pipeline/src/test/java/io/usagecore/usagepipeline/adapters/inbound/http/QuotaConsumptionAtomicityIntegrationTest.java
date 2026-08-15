@@ -214,6 +214,11 @@ class QuotaConsumptionAtomicityIntegrationTest extends AbstractUsageApiIntegrati
                 public long countAll() {
                     return delegate.countAll();
                 }
+
+                @Override
+                public Optional<Instant> oldestPendingCreatedAt() {
+                    return delegate.oldestPendingCreatedAt();
+                }
             };
         }
 

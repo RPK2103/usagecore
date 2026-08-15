@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.usagecore.entitlementruntime.application.observability.EntitlementRuntimeMetrics;
 import io.usagecore.entitlementruntime.application.security.AuthenticatedPrincipal;
 import io.usagecore.entitlementruntime.application.security.CorrelationIdAccessor;
 import io.usagecore.entitlementruntime.application.security.CurrentPrincipal;
@@ -51,7 +52,8 @@ class EntitlementCheckApplicationServiceTest {
                 correlationIdAccessor,
                 commercialEntitlementReader,
                 decisionRecorder,
-                Clock.fixed(FIXED, ZoneOffset.UTC)
+                Clock.fixed(FIXED, ZoneOffset.UTC),
+                new EntitlementRuntimeMetrics(new io.micrometer.core.instrument.simple.SimpleMeterRegistry())
         );
         when(currentPrincipal.require()).thenReturn(new AuthenticatedPrincipal(
                 "dev-1",

@@ -9,6 +9,9 @@ import io.usagecore.events.usage.UsageReceivedPayload;
 import io.usagecore.usagepipeline.application.commercial.CommercialPeriodReader;
 import io.usagecore.usagepipeline.application.commercial.CommercialPeriodStatus;
 import io.usagecore.usagepipeline.application.commercial.CommercialPeriodView;
+import io.usagecore.usagepipeline.application.observability.TraceContextPort;
+import io.usagecore.usagepipeline.application.observability.TraceEvidence;
+import io.usagecore.usagepipeline.application.observability.UsagePipelineMetrics;
 import io.usagecore.usagepipeline.application.outbox.OutboxEventRecord;
 import io.usagecore.usagepipeline.application.outbox.OutboxEventRepository;
 import io.usagecore.usagepipeline.application.outbox.OutboxStatus;
@@ -32,6 +35,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,6 +54,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class QuotaConsumptionApplicationService {
 
+    private static final Logger log = LoggerFactory.getLogger(QuotaConsumptionApplicationService.class);
+
     private final CurrentPrincipal currentPrincipal;
     private final CorrelationIdAccessor correlationIdAccessor;
     private final MeterDefinitionLookup meterDefinitionLookup;
@@ -62,6 +69,8 @@ public class QuotaConsumptionApplicationService {
     private final ObjectMapper objectMapper;
     private final KafkaProperties kafkaProperties;
     private final Clock clock;
+    private final TraceContextPort traceContextPort;
+    private final UsagePipelineMetrics metrics;
 
     public QuotaConsumptionApplicationService(
             CurrentPrincipal currentPrincipal,
@@ -76,7 +85,9 @@ public class QuotaConsumptionApplicationService {
             OutboxEventRepository outboxEventRepository,
             ObjectMapper objectMapper,
             KafkaProperties kafkaProperties,
-            Clock clock
+            Clock clock,
+            TraceContextPort traceContextPort,
+            UsagePipelineMetrics metrics
     ) {
         this.currentPrincipal = currentPrincipal;
         this.correlationIdAccessor = correlationIdAccessor;
@@ -91,10 +102,27 @@ public class QuotaConsumptionApplicationService {
         this.objectMapper = objectMapper;
         this.kafkaProperties = kafkaProperties;
         this.clock = clock;
+        this.traceContextPort = traceContextPort;
+        this.metrics = metrics;
     }
 
     @Transactional
     public QuotaConsumeResult consume(
+            String productKey,
+            String meterKey,
+            long quantity,
+            Instant occurredAt,
+            String idempotencyKey
+    ) {
+        io.micrometer.core.instrument.Timer.Sample sample = metrics.startTimer();
+        try {
+            return consumeInternal(productKey, meterKey, quantity, occurredAt, idempotencyKey);
+        } finally {
+            metrics.stopTimer(sample, UsagePipelineMetrics.QUOTA_CONSUME_DURATION);
+        }
+    }
+
+    private QuotaConsumeResult consumeInternal(
             String productKey,
             String meterKey,
             long quantity,
@@ -422,7 +450,7 @@ public class QuotaConsumptionApplicationService {
                 partitionKey,
                 accepted.correlationId(),
                 null,
-                null,
+                TraceEvidence.forEnvelope(traceContextPort),
                 accepted.decidedAt(),
                 new UsageReceivedPayload(
                         accepted.productKey(),
@@ -649,7 +677,26 @@ public class QuotaConsumptionApplicationService {
                 && Objects.equals(existing.occurredAt(), occurredAt);
     }
 
-    private static QuotaConsumeResult toResult(QuotaConsumptionRecord record, boolean idempotentReplay) {
+    private QuotaConsumeResult toResult(QuotaConsumptionRecord record, boolean idempotentReplay) {
+        metrics.recordQuotaDecision(
+                record.decision() == null ? null : record.decision().name(),
+                record.reason()
+        );
+        if (record.decision() == QuotaDecision.REJECTED) {
+            log.warn(
+                    "Quota rejected. reason={} correlationId={} replay={}",
+                    record.reason(),
+                    record.correlationId(),
+                    idempotentReplay
+            );
+        } else {
+            log.info(
+                    "Quota accepted. reason={} correlationId={} replay={}",
+                    record.reason(),
+                    record.correlationId(),
+                    idempotentReplay
+            );
+        }
         return new QuotaConsumeResult(
                 record.id(),
                 record.eventId(),

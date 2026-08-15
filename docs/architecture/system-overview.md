@@ -65,3 +65,15 @@ Usage ingestion never accepts `tenantId` from the request body; tenant comes onl
 - Phase 8B: `POST /api/v1/reconciliation/runs/{runId}/exceptions/{exceptionId}/adjustments` applies quarantined canonical usage via immutable `usage_adjustment`; lifetime/window aggregates update atomically; `quota_state` unchanged ([ADR-016](../adr/ADR-016-explicit-usage-adjustments.md))
 - Delivery remains at-least-once; duplicate redelivery is a successful no-op
 - Kafka Streams deferred — PostgreSQL UPSERT retained for transactional correctness with inbox/ledger
+
+## Observability (Phase 9A)
+
+Metrics, traces, and structured logs describe existing behavior. They are not commercial correctness authority.
+
+- Micrometer + Prometheus + OpenTelemetry (W3C Trace Context) on all three workloads ([ADR-017](../adr/ADR-017-observability-architecture.md))
+- `correlationId` (HTTP `X-Correlation-Id`) remains distinct from `traceId`
+- HTTP → outbox envelope evidence → Kafka `traceparent` → consumer processing is correlatable
+- Custom Prometheus labels are bounded enums only — never tenant/event/request ids
+- Usage Pipeline readiness depends on PostgreSQL; Kafka down is degraded async delivery, not HTTP-ingestion failure
+- Local Prometheus + OTel Collector: [local observability](../observability/local-observability.md); metric catalogue: [metrics.md](../observability/metrics.md)
+- Grafana dashboards are Phase 9B

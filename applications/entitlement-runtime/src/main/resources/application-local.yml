@@ -1,0 +1,18 @@
+# Local/demo observability profile. Activate with SPRING_PROFILES_ACTIVE=local.
+# Does not contain production secrets.
+
+logging:
+  structured:
+    format:
+      console: logstash
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+    export:
+      otlp:
+        enabled: ${USAGECORE_OTLP_ENABLED:true}
+  otlp:
+    tracing:
+      endpoint: ${USAGECORE_OTLP_ENDPOINT:http://localhost:4318/v1/traces}

@@ -1,5 +1,8 @@
 package io.usagecore.usagepipeline.adapters.outbound.messaging;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.usagecore.usagepipeline.adapters.observability.OutboxPublishSpanSupport;
 import io.usagecore.usagepipeline.application.usage.UsageEventPublisher;
 import io.usagecore.usagepipeline.application.usage.UsagePublicationException;
 import io.usagecore.usagepipeline.configuration.KafkaProperties;
@@ -13,6 +16,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * Publishes the exact stored outbox envelope JSON to Kafka and waits for broker acknowledgement.
+ * W3C {@code traceparent} is injected by Spring Kafka observation from the restored outbox span.
  */
 @Component
 public class SpringKafkaUsageEventPublisher implements UsageEventPublisher {
@@ -24,17 +28,39 @@ public class SpringKafkaUsageEventPublisher implements UsageEventPublisher {
 
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final KafkaProperties kafkaProperties;
+    private final OutboxPublishSpanSupport outboxPublishSpanSupport;
+    private final ObjectMapper objectMapper;
 
     public SpringKafkaUsageEventPublisher(
             KafkaTemplate<String, String> kafkaTemplate,
-            KafkaProperties kafkaProperties
+            KafkaProperties kafkaProperties,
+            OutboxPublishSpanSupport outboxPublishSpanSupport,
+            ObjectMapper objectMapper
     ) {
         this.kafkaTemplate = kafkaTemplate;
         this.kafkaProperties = kafkaProperties;
+        this.outboxPublishSpanSupport = outboxPublishSpanSupport;
+        this.objectMapper = objectMapper;
     }
 
     @Override
     public void publishSerialized(
+            String topic,
+            String partitionKey,
+            String serializedEnvelope,
+            String eventId,
+            String eventType,
+            String eventVersion,
+            String correlationId
+    ) {
+        try (OutboxPublishSpanSupport.Scope ignored = outboxPublishSpanSupport.open(
+                traceEvidenceFromEnvelope(serializedEnvelope)
+        )) {
+            doPublish(topic, partitionKey, serializedEnvelope, eventId, eventType, eventVersion, correlationId);
+        }
+    }
+
+    private void doPublish(
             String topic,
             String partitionKey,
             String serializedEnvelope,
@@ -69,6 +95,16 @@ public class SpringKafkaUsageEventPublisher implements UsageEventPublisher {
         } catch (Exception ex) {
             Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
             throw new UsagePublicationException("Kafka publication failed", cause);
+        }
+    }
+
+    private String traceEvidenceFromEnvelope(String serializedEnvelope) {
+        try {
+            JsonNode node = objectMapper.readTree(serializedEnvelope);
+            JsonNode traceId = node.get("traceId");
+            return traceId != null && !traceId.isNull() ? traceId.asText() : null;
+        } catch (Exception ex) {
+            return null;
         }
     }
 }

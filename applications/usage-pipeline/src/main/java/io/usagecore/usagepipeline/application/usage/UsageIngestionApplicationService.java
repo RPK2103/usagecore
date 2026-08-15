@@ -9,6 +9,8 @@ import io.usagecore.events.usage.UsageReceivedPayload;
 import io.usagecore.usagepipeline.application.outbox.OutboxEventRecord;
 import io.usagecore.usagepipeline.application.outbox.OutboxEventRepository;
 import io.usagecore.usagepipeline.application.outbox.OutboxStatus;
+import io.usagecore.usagepipeline.application.observability.TraceContextPort;
+import io.usagecore.usagepipeline.application.observability.TraceEvidence;
 import io.usagecore.usagepipeline.application.security.AuthenticatedPrincipal;
 import io.usagecore.usagepipeline.application.security.CorrelationIdAccessor;
 import io.usagecore.usagepipeline.application.security.CurrentPrincipal;
@@ -19,6 +21,8 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,6 +36,8 @@ public class UsageIngestionApplicationService {
 
     public static final String ACCEPTED = "ACCEPTED";
 
+    private static final Logger log = LoggerFactory.getLogger(UsageIngestionApplicationService.class);
+
     private final CurrentPrincipal currentPrincipal;
     private final CorrelationIdAccessor correlationIdAccessor;
     private final UsageIngestionRepository usageIngestionRepository;
@@ -39,6 +45,7 @@ public class UsageIngestionApplicationService {
     private final ObjectMapper objectMapper;
     private final KafkaProperties kafkaProperties;
     private final Clock clock;
+    private final TraceContextPort traceContextPort;
 
     public UsageIngestionApplicationService(
             CurrentPrincipal currentPrincipal,
@@ -47,7 +54,8 @@ public class UsageIngestionApplicationService {
             OutboxEventRepository outboxEventRepository,
             ObjectMapper objectMapper,
             KafkaProperties kafkaProperties,
-            Clock clock
+            Clock clock,
+            TraceContextPort traceContextPort
     ) {
         this.currentPrincipal = currentPrincipal;
         this.correlationIdAccessor = correlationIdAccessor;
@@ -56,6 +64,7 @@ public class UsageIngestionApplicationService {
         this.objectMapper = objectMapper;
         this.kafkaProperties = kafkaProperties;
         this.clock = clock;
+        this.traceContextPort = traceContextPort;
     }
 
     @Transactional
@@ -113,7 +122,7 @@ public class UsageIngestionApplicationService {
                 partitionKey,
                 correlationId,
                 null,
-                null,
+                TraceEvidence.forEnvelope(traceContextPort),
                 acceptedAt,
                 new UsageReceivedPayload(
                         productKey,
@@ -144,6 +153,7 @@ public class UsageIngestionApplicationService {
                 null
         ));
 
+        log.info("Usage accepted. eventId={} correlationId={} replay=false", eventId, correlationId);
         return new UsageIngestionResult(eventId, ACCEPTED, correlationId, false);
     }
 
@@ -167,6 +177,11 @@ public class UsageIngestionApplicationService {
             );
         }
 
+        log.debug(
+                "Usage accepted (idempotent replay). eventId={} correlationId={}",
+                existing.eventId(),
+                existing.correlationId()
+        );
         return new UsageIngestionResult(
                 existing.eventId(),
                 ACCEPTED,

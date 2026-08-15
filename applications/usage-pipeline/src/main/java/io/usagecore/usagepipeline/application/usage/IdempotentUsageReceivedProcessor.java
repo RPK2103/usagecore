@@ -10,6 +10,7 @@ import io.usagecore.usagepipeline.application.commercial.CommercialPeriodView;
 import io.usagecore.usagepipeline.application.commercial.CommercialUsageExceptionReasons;
 import io.usagecore.usagepipeline.application.commercial.CommercialUsageExceptionRecord;
 import io.usagecore.usagepipeline.application.commercial.CommercialUsageExceptionRepository;
+import io.usagecore.usagepipeline.application.observability.UsagePipelineMetrics;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
@@ -45,6 +46,7 @@ public class IdempotentUsageReceivedProcessor implements UsageReceivedProcessor 
     private final CommercialPeriodReader commercialPeriodReader;
     private final CommercialUsageExceptionRepository commercialUsageExceptionRepository;
     private final Clock clock;
+    private final UsagePipelineMetrics metrics;
 
     public IdempotentUsageReceivedProcessor(
             ProcessedEventRepository processedEventRepository,
@@ -55,7 +57,8 @@ public class IdempotentUsageReceivedProcessor implements UsageReceivedProcessor 
             UsageWindowResolver usageWindowResolver,
             CommercialPeriodReader commercialPeriodReader,
             CommercialUsageExceptionRepository commercialUsageExceptionRepository,
-            Clock clock
+            Clock clock,
+            UsagePipelineMetrics metrics
     ) {
         this.processedEventRepository = processedEventRepository;
         this.usageLedgerRepository = usageLedgerRepository;
@@ -66,6 +69,7 @@ public class IdempotentUsageReceivedProcessor implements UsageReceivedProcessor 
         this.commercialPeriodReader = commercialPeriodReader;
         this.commercialUsageExceptionRepository = commercialUsageExceptionRepository;
         this.clock = clock;
+        this.metrics = metrics;
     }
 
     @Override
@@ -91,6 +95,7 @@ public class IdempotentUsageReceivedProcessor implements UsageReceivedProcessor 
                     event.eventId(),
                     event.tenantId()
             );
+            metrics.recordUsageProcessed(UsagePipelineMetrics.RESULT_DUPLICATE);
             return;
         }
 
@@ -163,6 +168,8 @@ public class IdempotentUsageReceivedProcessor implements UsageReceivedProcessor 
                         payload.quantity(),
                         event.correlationId()
                 );
+                metrics.recordUsageProcessed(UsagePipelineMetrics.RESULT_QUARANTINED);
+                metrics.recordCommercialException(reason);
                 return;
             }
             // OPEN / CLOSING: apply aggregates (CLOSING still accepts controlled late arrivals).
@@ -191,6 +198,9 @@ public class IdempotentUsageReceivedProcessor implements UsageReceivedProcessor 
                 event.occurredAt(),
                 processedAt
         );
+
+        metrics.recordAggregateUpdate(meter.aggregationType().name());
+        metrics.recordUsageProcessed(UsagePipelineMetrics.RESULT_APPLIED);
 
         log.info(
                 "UsageReceived recorded to ledger, lifetime aggregate, and window aggregate. "

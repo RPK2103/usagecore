@@ -1,6 +1,7 @@
 package io.usagecore.usagepipeline.application.reconciliation;
 
 import io.usagecore.usagepipeline.application.commercial.CommercialPeriodStatus;
+import io.usagecore.usagepipeline.application.observability.UsagePipelineMetrics;
 import io.usagecore.usagepipeline.application.security.AuthenticatedPrincipal;
 import io.usagecore.usagepipeline.application.security.AuthorizationDeniedException;
 import io.usagecore.usagepipeline.application.security.CorrelationIdAccessor;
@@ -45,6 +46,7 @@ public class ReconciliationApplicationService {
     private final CurrentPrincipal currentPrincipal;
     private final CorrelationIdAccessor correlationIdAccessor;
     private final Clock clock;
+    private final UsagePipelineMetrics metrics;
 
     public ReconciliationApplicationService(
             ReconciliationRepository reconciliationRepository,
@@ -53,7 +55,8 @@ public class ReconciliationApplicationService {
             ReconciliationRunTransactions runTransactions,
             CurrentPrincipal currentPrincipal,
             CorrelationIdAccessor correlationIdAccessor,
-            Clock clock
+            Clock clock,
+            UsagePipelineMetrics metrics
     ) {
         this.reconciliationRepository = reconciliationRepository;
         this.evidenceReader = evidenceReader;
@@ -62,9 +65,19 @@ public class ReconciliationApplicationService {
         this.currentPrincipal = currentPrincipal;
         this.correlationIdAccessor = correlationIdAccessor;
         this.clock = clock;
+        this.metrics = metrics;
     }
 
     public ReconciliationRunRecord startAndExecute(UUID commercialPeriodId) {
+        io.micrometer.core.instrument.Timer.Sample sample = metrics.startTimer();
+        try {
+            return startAndExecuteInternal(commercialPeriodId);
+        } finally {
+            metrics.stopTimer(sample, UsagePipelineMetrics.RECONCILIATION_DURATION);
+        }
+    }
+
+    private ReconciliationRunRecord startAndExecuteInternal(UUID commercialPeriodId) {
         Objects.requireNonNull(commercialPeriodId, "commercialPeriodId");
         AuthenticatedPrincipal principal = currentPrincipal.require();
         assertInitiateAuthority(principal);
@@ -137,6 +150,7 @@ public class ReconciliationApplicationService {
                     commercialPeriodId,
                     reason
             );
+            metrics.recordReconciliationRun(UsagePipelineMetrics.RESULT_FAILED);
             if (ex instanceof ReconciliationConflictException || ex instanceof ReconciliationNotFoundException) {
                 throw ex;
             }
@@ -254,6 +268,16 @@ public class ReconciliationApplicationService {
                 null
         );
         reconciliationRepository.complete(completed, items);
+
+        if (rebuild.result() == ReconciliationResult.MATCH) {
+            metrics.recordReconciliationRun(UsagePipelineMetrics.RESULT_MATCH);
+        } else {
+            metrics.recordReconciliationRun(UsagePipelineMetrics.RESULT_MISMATCH);
+            items.stream()
+                    .filter(item -> item.classification() != null
+                            && item.classification() != ReconciliationClassification.MATCH)
+                    .forEach(item -> metrics.recordReconciliationMismatch(item.classification().name()));
+        }
 
         log.info(
                 "Reconciliation completed. runId={} commercialPeriodId={} result={} matched={} mismatched={} "

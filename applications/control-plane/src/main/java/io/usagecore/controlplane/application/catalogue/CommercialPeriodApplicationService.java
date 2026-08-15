@@ -1,5 +1,6 @@
 package io.usagecore.controlplane.application.catalogue;
 
+import io.usagecore.controlplane.application.observability.ControlPlaneMetrics;
 import io.usagecore.controlplane.application.security.AuthenticatedPrincipal;
 import io.usagecore.controlplane.application.security.CorrelationIdAccessor;
 import io.usagecore.controlplane.application.security.CurrentPrincipal;
@@ -17,6 +18,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class CommercialPeriodApplicationService {
 
+    private static final Logger log = LoggerFactory.getLogger(CommercialPeriodApplicationService.class);
+
     private final CommercialPeriodRepository commercialPeriodRepository;
     private final TenantRepository tenantRepository;
     private final ProductRepository productRepository;
@@ -35,6 +40,7 @@ public class CommercialPeriodApplicationService {
     private final CorrelationIdAccessor correlationIdAccessor;
     private final ActiveReconciliationProbe activeReconciliationProbe;
     private final Clock clock;
+    private final ControlPlaneMetrics metrics;
 
     public CommercialPeriodApplicationService(
             CommercialPeriodRepository commercialPeriodRepository,
@@ -44,7 +50,8 @@ public class CommercialPeriodApplicationService {
             TenantAccessGuard tenantAccessGuard,
             CorrelationIdAccessor correlationIdAccessor,
             ActiveReconciliationProbe activeReconciliationProbe,
-            Clock clock
+            Clock clock,
+            ControlPlaneMetrics metrics
     ) {
         this.commercialPeriodRepository = commercialPeriodRepository;
         this.tenantRepository = tenantRepository;
@@ -54,6 +61,7 @@ public class CommercialPeriodApplicationService {
         this.correlationIdAccessor = correlationIdAccessor;
         this.activeReconciliationProbe = activeReconciliationProbe;
         this.clock = clock;
+        this.metrics = metrics;
     }
 
     @Transactional
@@ -162,11 +170,13 @@ public class CommercialPeriodApplicationService {
                 .orElseThrow(() -> new ResourceNotFoundException("Commercial period not found: " + periodId));
 
         if (existing.status() == CommercialPeriodStatus.FINALIZED) {
+            metrics.recordPeriodTransition(existing.status().name(), toStatus.name(), "rejected");
             throw new DomainInvariantException(
                     "FINALIZED commercial period is terminal and cannot transition to " + toStatus
             );
         }
         if (existing.status() != fromStatus) {
+            metrics.recordPeriodTransition(existing.status().name(), toStatus.name(), "rejected");
             throw new DomainInvariantException(
                     "Invalid commercial period transition from " + existing.status() + " to " + toStatus
             );
@@ -177,6 +187,7 @@ public class CommercialPeriodApplicationService {
                 throw new DomainInvariantException("finalizedBy principal is required");
             }
             if (activeReconciliationProbe.hasRunningReconciliation(periodId)) {
+                metrics.recordPeriodTransition(fromStatus.name(), toStatus.name(), "rejected");
                 throw new DomainInvariantException(
                         "Cannot finalize commercial period while a reconciliation run is RUNNING"
                 );
@@ -194,6 +205,7 @@ public class CommercialPeriodApplicationService {
                 finalizedByOrNull
         );
         if (updated.isEmpty()) {
+            metrics.recordPeriodTransition(fromStatus.name(), toStatus.name(), "rejected");
             throw new DomainInvariantException(
                     "Invalid commercial period transition from " + fromStatus + " to " + toStatus
             );
@@ -208,6 +220,13 @@ public class CommercialPeriodApplicationService {
                 now,
                 correlationIdAccessor.currentCorrelationId()
         ));
+        metrics.recordPeriodTransition(fromStatus.name(), toStatus.name(), "success");
+        log.info(
+                "Commercial period transitioned. from={} to={} correlationId={}",
+                fromStatus,
+                toStatus,
+                correlationIdAccessor.currentCorrelationId()
+        );
         return updated.get();
     }
 

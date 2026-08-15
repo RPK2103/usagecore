@@ -59,4 +59,20 @@ public class JdbcCommercialUsageExceptionRepository implements CommercialUsageEx
         Long count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM commercial_usage_exception", Long.class);
         return count == null ? 0L : count;
     }
+
+    @Override
+    public long countUnresolved() {
+        Long count = jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM commercial_usage_exception e
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM usage_adjustment a
+                    WHERE a.commercial_usage_exception_id = e.id
+                )
+                """,
+                Long.class
+        );
+        return count == null ? 0L : count;
+    }
 }

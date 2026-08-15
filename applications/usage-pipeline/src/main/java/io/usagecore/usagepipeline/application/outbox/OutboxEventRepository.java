@@ -22,4 +22,9 @@ public interface OutboxEventRepository {
     long countByStatus(OutboxStatus status);
 
     long countAll();
+
+    /**
+     * Oldest PENDING row {@code created_at}, if any. Used by scrape-time gauges only.
+     */
+    Optional<Instant> oldestPendingCreatedAt();
 }

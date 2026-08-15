@@ -1,0 +1,31 @@
+# Local Prometheus scrape config for UsageCore Phase 9A.
+# Applications typically run on the host (IDE / mvnw); Prometheus runs in Docker.
+# host.docker.internal is provided via extra_hosts in docker-compose.yml.
+#
+# Do not treat listed targets as healthy unless the applications are actually running.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: usagecore-control-plane
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8080"]
+        labels:
+          application: usagecore-control-plane
+
+  - job_name: usagecore-entitlement-runtime
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8082"]
+        labels:
+          application: usagecore-entitlement-runtime
+
+  - job_name: usagecore-usage-pipeline
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["host.docker.internal:8083"]
+        labels:
+          application: usagecore-usage-pipeline

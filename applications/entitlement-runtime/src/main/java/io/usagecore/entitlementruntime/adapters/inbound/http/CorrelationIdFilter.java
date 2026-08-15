@@ -1,6 +1,7 @@
 package io.usagecore.entitlementruntime.adapters.inbound.http;
 
 import io.usagecore.entitlementruntime.adapters.inbound.http.error.GlobalExceptionHandler;
+import io.usagecore.entitlementruntime.adapters.observability.ObservabilityMdc;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -13,6 +14,10 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+/**
+ * Ensures every request has an {@code X-Correlation-Id}, generating one when absent.
+ * Puts {@code correlationId} in MDC for the request and restores it afterwards.
+ */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class CorrelationIdFilter extends OncePerRequestFilter {
@@ -38,6 +43,11 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
         };
 
         response.setHeader(GlobalExceptionHandler.CORRELATION_ID_HEADER, correlationId);
-        filterChain.doFilter(wrappedRequest, response);
+        try (ObservabilityMdc.Scope ignored = ObservabilityMdc.open(
+                ObservabilityMdc.CORRELATION_ID,
+                correlationId
+        )) {
+            filterChain.doFilter(wrappedRequest, response);
+        }
     }
 }

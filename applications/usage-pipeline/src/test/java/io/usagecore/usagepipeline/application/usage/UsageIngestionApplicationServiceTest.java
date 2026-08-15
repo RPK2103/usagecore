@@ -121,7 +121,8 @@ class UsageIngestionApplicationServiceTest {
                 new InMemoryOutboxEventRepository(),
                 objectMapper,
                 kafkaProperties,
-                Clock.fixed(FIXED, ZoneOffset.UTC)
+                Clock.fixed(FIXED, ZoneOffset.UTC),
+                io.usagecore.usagepipeline.application.observability.NoOpTraceContextPort.INSTANCE
         );
 
         assertThatThrownBy(() -> service.ingest(
@@ -171,7 +172,8 @@ class UsageIngestionApplicationServiceTest {
                 outboxRepo,
                 objectMapper,
                 kafkaProperties,
-                Clock.fixed(FIXED, ZoneOffset.UTC)
+                Clock.fixed(FIXED, ZoneOffset.UTC),
+                io.usagecore.usagepipeline.application.observability.NoOpTraceContextPort.INSTANCE
         );
     }
 
@@ -234,6 +236,14 @@ class UsageIngestionApplicationServiceTest {
         @Override
         public long countAll() {
             return rows.size();
+        }
+
+        @Override
+        public Optional<Instant> oldestPendingCreatedAt() {
+            return rows.stream()
+                    .filter(r -> r.status() == OutboxStatus.PENDING)
+                    .map(OutboxEventRecord::createdAt)
+                    .min(Instant::compareTo);
         }
     }
 }

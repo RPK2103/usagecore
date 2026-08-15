@@ -2,6 +2,8 @@ package io.usagecore.usagepipeline.application.outbox;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.Timer;
+import io.usagecore.usagepipeline.application.observability.UsagePipelineMetrics;
 import io.usagecore.usagepipeline.application.usage.UsageEventPublisher;
 import io.usagecore.usagepipeline.application.usage.UsagePublicationException;
 import java.time.Clock;
@@ -28,17 +30,20 @@ public class OutboxPublisherApplicationService {
     private final UsageEventPublisher usageEventPublisher;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final UsagePipelineMetrics metrics;
 
     public OutboxPublisherApplicationService(
             OutboxEventRepository outboxEventRepository,
             UsageEventPublisher usageEventPublisher,
             ObjectMapper objectMapper,
-            Clock clock
+            Clock clock,
+            UsagePipelineMetrics metrics
     ) {
         this.outboxEventRepository = outboxEventRepository;
         this.usageEventPublisher = usageEventPublisher;
         this.objectMapper = objectMapper;
         this.clock = clock;
+        this.metrics = metrics;
     }
 
     /**
@@ -56,6 +61,7 @@ public class OutboxPublisherApplicationService {
         List<OutboxEventRecord> claimed = outboxEventRepository.claimPending(batchSize);
         int published = 0;
         for (OutboxEventRecord row : claimed) {
+            Timer.Sample sample = metrics.startTimer();
             try {
                 usageEventPublisher.publishSerialized(
                         row.topic(),
@@ -66,13 +72,23 @@ public class OutboxPublisherApplicationService {
                         row.eventVersion(),
                         correlationIdFromEnvelope(row.serializedEnvelope())
                 );
+                metrics.recordOutboxPublish(UsagePipelineMetrics.RESULT_SUCCESS);
+                log.info(
+                        "Outbox published. eventId={} eventType={} correlationId={}",
+                        row.eventId(),
+                        row.eventType(),
+                        correlationIdFromEnvelope(row.serializedEnvelope())
+                );
             } catch (UsagePublicationException ex) {
+                metrics.recordOutboxPublish(UsagePipelineMetrics.RESULT_FAILURE);
                 log.warn(
                         "Outbox publication failed for eventId={}; leaving PENDING for retry",
                         row.eventId(),
                         ex
                 );
                 throw ex;
+            } finally {
+                metrics.stopTimer(sample, UsagePipelineMetrics.OUTBOX_PUBLISH_DURATION);
             }
             outboxEventRepository.markPublished(row.id(), clock.instant());
             published++;

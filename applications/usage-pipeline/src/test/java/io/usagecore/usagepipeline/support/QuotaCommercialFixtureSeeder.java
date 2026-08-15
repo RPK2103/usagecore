@@ -79,39 +79,55 @@ public final class QuotaCommercialFixtureSeeder {
             );
         }
 
-        UUID versionId = UUID.randomUUID();
-        jdbc.update(
-                """
-                INSERT INTO contract_version (
-                    id, contract_id, tenant_id, version_number, source_plan_id, status,
-                    effective_from, effective_until, activated_at, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, NULL, 'ACTIVATED', ?, ?, ?, ?, ?)
-                """,
-                versionId,
+        UUID versionId = jdbc.query(
+                "SELECT id FROM contract_version WHERE contract_id = ? AND version_number = ?",
+                rs -> rs.next() ? rs.getObject("id", UUID.class) : null,
                 contractId,
-                tenantId,
-                versionNumber,
-                Timestamp.from(effectiveFrom),
-                effectiveUntil == null ? null : Timestamp.from(effectiveUntil),
-                Timestamp.from(now),
-                Timestamp.from(now),
-                Timestamp.from(now)
+                versionNumber
         );
+        if (versionId == null) {
+            versionId = UUID.randomUUID();
+            jdbc.update(
+                    """
+                    INSERT INTO contract_version (
+                        id, contract_id, tenant_id, version_number, source_plan_id, status,
+                        effective_from, effective_until, activated_at, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, NULL, 'ACTIVATED', ?, ?, ?, ?, ?)
+                    """,
+                    versionId,
+                    contractId,
+                    tenantId,
+                    versionNumber,
+                    Timestamp.from(effectiveFrom),
+                    effectiveUntil == null ? null : Timestamp.from(effectiveUntil),
+                    Timestamp.from(now),
+                    Timestamp.from(now),
+                    Timestamp.from(now)
+            );
+        }
 
-        jdbc.update(
-                """
-                INSERT INTO entitlement (
-                    id, contract_version_id, feature_id, entitlement_mode, limit_quantity, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                UUID.randomUUID(),
+        Integer entitlementCount = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM entitlement WHERE contract_version_id = ? AND feature_id = ?",
+                Integer.class,
                 versionId,
-                featureId,
-                mode,
-                limitQuantity,
-                Timestamp.from(now),
-                Timestamp.from(now)
+                featureId
         );
+        if (entitlementCount == null || entitlementCount == 0) {
+            jdbc.update(
+                    """
+                    INSERT INTO entitlement (
+                        id, contract_version_id, feature_id, entitlement_mode, limit_quantity, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    UUID.randomUUID(),
+                    versionId,
+                    featureId,
+                    mode,
+                    limitQuantity,
+                    Timestamp.from(now),
+                    Timestamp.from(now)
+            );
+        }
 
         return new ActivatedContract(contractId, versionId, versionNumber);
     }

@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.usagecore.usagepipeline.adapters.observability.OutboxPublishSpanSupport;
 import io.usagecore.usagepipeline.adapters.outbound.messaging.SpringKafkaUsageEventPublisher;
 import io.usagecore.usagepipeline.application.outbox.OutboxEventRepository;
 import io.usagecore.usagepipeline.application.outbox.OutboxPublisherApplicationService;
@@ -141,9 +143,16 @@ class UsageOutboxFailureIntegrationTest extends AbstractUsageApiIntegrationTest 
         UsageEventPublisher controllablePublisher(
                 Gate gate,
                 KafkaTemplate<String, String> kafkaTemplate,
-                KafkaProperties kafkaProperties
+                KafkaProperties kafkaProperties,
+                OutboxPublishSpanSupport outboxPublishSpanSupport,
+                ObjectMapper objectMapper
         ) {
-            UsageEventPublisher delegate = new SpringKafkaUsageEventPublisher(kafkaTemplate, kafkaProperties);
+            UsageEventPublisher delegate = new SpringKafkaUsageEventPublisher(
+                    kafkaTemplate,
+                    kafkaProperties,
+                    outboxPublishSpanSupport,
+                    objectMapper
+            );
             return (
                     topic,
                     partitionKey,

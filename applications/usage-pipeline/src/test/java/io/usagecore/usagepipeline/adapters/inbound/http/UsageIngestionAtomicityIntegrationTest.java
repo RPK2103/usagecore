@@ -95,6 +95,11 @@ class UsageIngestionAtomicityIntegrationTest extends AbstractUsageApiIntegration
                 public long countAll() {
                     return 0;
                 }
+
+                @Override
+                public Optional<Instant> oldestPendingCreatedAt() {
+                    return Optional.empty();
+                }
             };
         }
     }

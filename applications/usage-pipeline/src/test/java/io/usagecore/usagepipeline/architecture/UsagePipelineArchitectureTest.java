@@ -41,6 +41,15 @@ class UsagePipelineArchitectureTest {
             .because("application ports must stay free of Kafka client APIs");
 
     @ArchTest
+    static final ArchRule applicationMustNotDependOnOpenTelemetry = noClasses()
+            .that()
+            .resideInAPackage("..application..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAnyPackage("io.opentelemetry..", "io.micrometer.tracing..")
+            .because("application uses a narrow trace port; OTel and Tracer APIs stay in adapters");
+
+    @ArchTest
     static final ArchRule applicationMustNotDependOnSpringMvc = noClasses()
             .that()
             .resideInAPackage("..application..")

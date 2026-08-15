@@ -1,5 +1,6 @@
 package io.usagecore.entitlementruntime.application.entitlement;
 
+import io.usagecore.entitlementruntime.application.observability.EntitlementRuntimeMetrics;
 import io.usagecore.entitlementruntime.application.security.AuthenticatedPrincipal;
 import io.usagecore.entitlementruntime.application.security.CorrelationIdAccessor;
 import io.usagecore.entitlementruntime.application.security.CurrentPrincipal;
@@ -11,6 +12,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,28 +24,42 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class EntitlementCheckApplicationService {
 
+    private static final Logger log = LoggerFactory.getLogger(EntitlementCheckApplicationService.class);
+
     private final CurrentPrincipal currentPrincipal;
     private final CorrelationIdAccessor correlationIdAccessor;
     private final CommercialEntitlementReader commercialEntitlementReader;
     private final EntitlementDecisionRecorder decisionRecorder;
     private final Clock clock;
+    private final EntitlementRuntimeMetrics metrics;
 
     public EntitlementCheckApplicationService(
             CurrentPrincipal currentPrincipal,
             CorrelationIdAccessor correlationIdAccessor,
             CommercialEntitlementReader commercialEntitlementReader,
             EntitlementDecisionRecorder decisionRecorder,
-            Clock clock
+            Clock clock,
+            EntitlementRuntimeMetrics metrics
     ) {
         this.currentPrincipal = currentPrincipal;
         this.correlationIdAccessor = correlationIdAccessor;
         this.commercialEntitlementReader = commercialEntitlementReader;
         this.decisionRecorder = decisionRecorder;
         this.clock = clock;
+        this.metrics = metrics;
     }
 
     @Transactional
     public EntitlementCheckResult check(String productKey, String featureKey, long requestedUnits) {
+        io.micrometer.core.instrument.Timer.Sample sample = metrics.startDecisionTimer();
+        try {
+            return checkInternal(productKey, featureKey, requestedUnits);
+        } finally {
+            metrics.stopDecisionTimer(sample);
+        }
+    }
+
+    private EntitlementCheckResult checkInternal(String productKey, String featureKey, long requestedUnits) {
         if (requestedUnits <= 0) {
             throw new IllegalArgumentException("requestedUnits must be positive");
         }
@@ -90,6 +107,17 @@ public class EntitlementCheckApplicationService {
                 correlationId,
                 createdAt
         ));
+
+        metrics.recordDecision(
+                outcome.decision() == null ? null : outcome.decision().name(),
+                outcome.reason()
+        );
+        log.info(
+                "Entitlement decision. decision={} reason={} correlationId={}",
+                outcome.decision(),
+                outcome.reason(),
+                correlationId
+        );
 
         return new EntitlementCheckResult(
                 decisionId,

@@ -69,6 +69,10 @@ public class JdbcOutboxEventRepository implements OutboxEventRepository {
             SELECT COUNT(*) FROM outbox_event
             """;
 
+    private static final String OLDEST_PENDING_CREATED_AT = """
+            SELECT MIN(created_at) FROM outbox_event WHERE status = 'PENDING'
+            """;
+
     private final JdbcTemplate jdbcTemplate;
 
     public JdbcOutboxEventRepository(JdbcTemplate jdbcTemplate) {
@@ -117,5 +121,11 @@ public class JdbcOutboxEventRepository implements OutboxEventRepository {
     public long countAll() {
         Long count = jdbcTemplate.queryForObject(COUNT_ALL, Long.class);
         return count == null ? 0L : count;
+    }
+
+    @Override
+    public Optional<Instant> oldestPendingCreatedAt() {
+        Timestamp oldest = jdbcTemplate.queryForObject(OLDEST_PENDING_CREATED_AT, Timestamp.class);
+        return oldest == null ? Optional.empty() : Optional.of(oldest.toInstant());
     }
 }

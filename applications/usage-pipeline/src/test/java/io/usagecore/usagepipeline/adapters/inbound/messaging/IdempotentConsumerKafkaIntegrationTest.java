@@ -212,13 +212,18 @@ class IdempotentConsumerKafkaIntegrationTest extends AbstractIdempotentConsumerI
                         .get(10, TimeUnit.SECONDS);
             }
 
-            ConsumerRecord<String, String> dlqRecord = KafkaTestUtils.getSingleRecord(
-                    dlqConsumer,
-                    usageReceivedDlqTopic,
-                    Duration.ofSeconds(30)
-            );
-            assertThat(dlqRecord.value()).contains("\"eventVersion\":\"99\"");
-            assertThat(dlqRecord.value()).contains(poisonEventId.toString());
+            await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
+                var records = KafkaTestUtils.getRecords(dlqConsumer, Duration.ofSeconds(2));
+                boolean found = false;
+                for (ConsumerRecord<String, String> rec : records.records(usageReceivedDlqTopic)) {
+                    if (rec.value() != null && rec.value().contains(poisonEventId.toString())) {
+                        assertThat(rec.value()).contains("\"eventVersion\":\"99\"");
+                        found = true;
+                        break;
+                    }
+                }
+                assertThat(found).isTrue();
+            });
         }
 
         assertThat(usageLedgerRepository.countByEventId(poisonEventId)).isZero();

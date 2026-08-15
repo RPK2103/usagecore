@@ -32,6 +32,19 @@ class RuntimeArchitectureTest {
             .because("domain must remain framework-independent");
 
     @ArchTest
+    static final ArchRule domainMustNotDependOnObservabilityInfrastructure = noClasses()
+            .that()
+            .resideInAPackage("..domain..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAnyPackage(
+                    "io.micrometer..",
+                    "io.opentelemetry..",
+                    "org.slf4j.."
+            )
+            .because("domain must remain free of metrics, tracing, and MDC APIs");
+
+    @ArchTest
     static final ArchRule domainMustNotDependOnJdbc = noClasses()
             .that()
             .resideInAPackage("..domain..")

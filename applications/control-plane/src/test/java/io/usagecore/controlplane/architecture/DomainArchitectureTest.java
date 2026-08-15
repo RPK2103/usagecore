@@ -54,6 +54,19 @@ class DomainArchitectureTest {
             .because("domain must remain independent of HTTP/web infrastructure");
 
     @ArchTest
+    static final ArchRule domainMustNotDependOnObservabilityInfrastructure = noClasses()
+            .that()
+            .resideInAPackage("..domain..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAnyPackage(
+                    "io.micrometer..",
+                    "io.opentelemetry..",
+                    "org.slf4j.."
+            )
+            .because("domain must remain free of metrics, tracing, and MDC APIs");
+
+    @ArchTest
     static final ArchRule domainMustNotDependOnSecurityInfrastructure = noClasses()
             .that()
             .resideInAPackage("..domain..")
