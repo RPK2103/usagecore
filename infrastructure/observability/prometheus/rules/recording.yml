@@ -1,0 +1,34 @@
+groups:
+  - name: usagecore_recording
+    interval: 15s
+    rules:
+      # HTTP 5xx ratio for non-actuator traffic. Counters reset on restart; rate() is required.
+      - record: usagecore:http:server_error_ratio
+        expr: |
+          sum by (application) (rate(http_server_requests_seconds_count{status=~"5..",uri!~"/actuator.*"}[5m]))
+          /
+          clamp_min(sum by (application) (rate(http_server_requests_seconds_count{uri!~"/actuator.*"}[5m])), 1e-9)
+
+      - record: usagecore:http:client_error_ratio
+        expr: |
+          sum by (application) (rate(http_server_requests_seconds_count{status=~"4..",uri!~"/actuator.*"}[5m]))
+          /
+          clamp_min(sum by (application) (rate(http_server_requests_seconds_count{uri!~"/actuator.*"}[5m])), 1e-9)
+
+      - record: usagecore:http:availability_ratio
+        expr: |
+          1 - usagecore:http:server_error_ratio
+
+      - record: usagecore:http:p95_latency_seconds
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (application, le) (rate(http_server_requests_seconds_bucket{uri!~"/actuator.*"}[5m]))
+          )
+
+      - record: usagecore:outbox:pending_age_seconds
+        expr: usagecore_outbox_oldest_pending_age_seconds
+
+      - record: usagecore:hikari:pool_utilization
+        expr: |
+          hikaricp_connections_active / clamp_min(hikaricp_connections_max, 1)

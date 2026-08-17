@@ -1,4 +1,6 @@
-# Custom metrics catalogue (Phase 9A)
+# Custom metrics catalogue (Phase 9A / 9B)
+
+Dashboards and alerts in Phase 9B consume these names. Prometheus adds suffixes (`_total`, `_seconds`) according to type. See [alerts.md](alerts.md) and [ADR-018](../adr/ADR-018-operational-dashboards-and-alerting.md).
 
 Logical Micrometer names are dotted. Prometheus adds suffixes (`_total`, `_seconds`) according to type.
 
@@ -52,3 +54,24 @@ Exposed via Actuator/Micrometer, not reimplemented:
 - Database: Hikari connection pool (`hikaricp.*`)
 
 Inspect `/actuator/prometheus` for the exact exported names after a scrape.
+
+Prometheus export examples (not an exhaustive scrape dump):
+
+| Logical | Typical Prometheus name |
+| --- | --- |
+| `usagecore.outbox.publish` | `usagecore_outbox_publish_total` |
+| `usagecore.outbox.pending` | `usagecore_outbox_pending` |
+| `usagecore.outbox.oldest.pending.age` | `usagecore_outbox_oldest_pending_age_seconds` |
+| `usagecore.usage.events.processed` | `usagecore_usage_events_processed_total` |
+| `usagecore.usage.dlq` | `usagecore_usage_dlq_total` |
+| `usagecore.quota.decisions` | `usagecore_quota_decisions_total` |
+| `usagecore.commercial.usage.exceptions.unresolved` | `usagecore_commercial_usage_exceptions_unresolved` |
+| `usagecore.reconciliation.runs` | `usagecore_reconciliation_runs_total` |
+| `usagecore.reconciliation.mismatches` | `usagecore_reconciliation_mismatches_total` |
+| `usagecore.usage.adjustments` | `usagecore_usage_adjustments_total` |
+| `usagecore.entitlement.decisions` | `usagecore_entitlement_decisions_total` |
+| `usagecore.commercial.period.transitions` | `usagecore_commercial_period_transitions_total` |
+| `http.server.requests` | `http_server_requests_seconds_count` / `_bucket` / `_sum` |
+| Hikari | `hikaricp_connections_active`, `_idle`, `_pending`, `_max` |
+
+Counters reset on application restart; Grafana uses `rate()` / `increase()`.

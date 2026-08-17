@@ -1,6 +1,5 @@
-# Minimal local OpenTelemetry Collector for Phase 9A trace export validation.
-# Receives OTLP and writes to the debug/logging exporter.
-# Trace UI / persistence is Phase 9B.
+# Minimal local OpenTelemetry Collector. Receives OTLP and writes to the debug exporter.
+# No Tempo / Jaeger / trace UI in this phase.
 
 receivers:
   otlp:
@@ -12,7 +11,7 @@ receivers:
 
 exporters:
   debug:
-    verbosity: basic
+    verbosity: normal
 
 processors:
   batch: {}

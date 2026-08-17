@@ -1,0 +1,95 @@
+# DEMO / ENGINEERING DEFAULTS — not production-tuned SLOs.
+# Production thresholds must be calibrated from observed baselines and business SLOs.
+# Labels stay bounded: severity, application (from scrape/recording), alertname.
+# Alerts identify operator action only. No automatic remediation.
+
+groups:
+  - name: usagecore_alerts
+    rules:
+      - alert: UsageCoreWorkloadDown
+        expr: up{job=~"usagecore-.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus cannot scrape {{ $labels.application }} (job {{ $labels.job }})."
+          description: "up==0 means scrape failure or process not reachable. Distinct from Actuator health and from business metrics."
+          runbook_url: docs/observability/runbooks/workload-unavailable.md
+
+      - alert: HighHttpServerErrorRate
+        expr: usagecore:http:server_error_ratio > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.application }} HTTP 5xx ratio above 5% (demo threshold)."
+          description: "Sustained server-error ratio on non-actuator HTTP. Investigate logs and traces; do not treat this as commercial correctness."
+          runbook_url: docs/observability/runbooks/workload-unavailable.md
+
+      - alert: OutboxDeliveryDelayed
+        expr: usagecore_outbox_oldest_pending_age_seconds > 120
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Oldest PENDING outbox event is older than 120s (demo threshold)."
+          description: "Durable HTTP ingestion may still be succeeding (202). This is delivery lag, not necessarily ingestion failure."
+          runbook_url: docs/observability/runbooks/outbox-delivery-delay.md
+
+      - alert: OutboxPublishFailures
+        expr: increase(usagecore_outbox_publish_total{result="failure"}[5m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Outbox Kafka publish failures in the last 5 minutes."
+          description: "Publisher attempts failed. Rows should remain PENDING for retry. Do not mark outbox PUBLISHED manually."
+          runbook_url: docs/observability/runbooks/outbox-delivery-delay.md
+
+      - alert: UsageDlqDetected
+        expr: increase(usagecore_usage_dlq_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "UsageReceived records were recovered to the DLQ."
+          description: "DLQ means the bounded retry path could not process the record. Do not blindly replay or delete DLQ messages."
+          runbook_url: docs/observability/runbooks/usage-dlq.md
+
+      - alert: ReconciliationMismatchDetected
+        expr: increase(usagecore_reconciliation_runs_total{result="mismatch"}[15m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "At least one reconciliation run completed with MISMATCH."
+          description: "MISMATCH is derived-state divergence vs canonical ledger. It is not automatic data loss. Inspect the reconciliation report; do not UPDATE aggregates by hand."
+          runbook_url: docs/observability/runbooks/reconciliation-mismatch.md
+
+      - alert: ReconciliationFailureDetected
+        expr: increase(usagecore_reconciliation_runs_total{result="failed"}[15m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "A reconciliation run failed to complete."
+          description: "FAILED is distinct from MISMATCH: the run did not finish comparison. Inspect application logs; do not delete reconciliation evidence."
+          runbook_url: docs/observability/runbooks/reconciliation-mismatch.md
+
+      - alert: CommercialExceptionsAccumulating
+        expr: usagecore_commercial_usage_exceptions_unresolved > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Unresolved commercial_usage_exception rows remain above zero."
+          description: "Exceptions are intentional quarantine evidence for RECONCILING/FINALIZED periods, not disposable errors. Do not DELETE rows to clear the gauge."
+          runbook_url: docs/observability/runbooks/commercial-exception-backlog.md
+
+      - alert: DatabaseConnectionPressure
+        expr: hikaricp_connections_pending > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.application }} Hikari pool has pending connection waits."
+          description: "Callers are waiting for a pool connection. Distinct from scrape up and from Actuator health."
+          runbook_url: docs/observability/runbooks/database-connection-pressure.md

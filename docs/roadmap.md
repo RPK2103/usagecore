@@ -108,25 +108,31 @@ Milestones are sequential. Each builds only the workloads it needs.
 - Rebuild includes applied adjustments; old reconciliation runs remain immutable
 - [ADR-016](adr/ADR-016-explicit-usage-adjustments.md)
 
-## Phase 9A — Structured observability (current)
+## Phase 9A — Structured observability
 
 - Micrometer + Prometheus + OpenTelemetry (W3C) across all three workloads
 - Structured logs with `correlationId` / `traceId` / `spanId`; correlation remains distinct from trace id
 - HTTP → outbox envelope → Kafka `traceparent` → consumer MDC continuation
 - Bounded-cardinality business metrics (outbox, usage processing, quota, entitlement, commercial period, reconciliation, adjustment)
 - Actuator `health` / `info` / `prometheus`; Usage Pipeline readiness is PostgreSQL, not Kafka
-- Local Prometheus + OTel Collector in Docker Compose; Grafana dashboards deferred
+- Local Prometheus + OTel Collector in Docker Compose
 - [ADR-017](adr/ADR-017-observability-architecture.md)
+
+## Phase 9B — Operational dashboards and alerting (current)
+
+- Grafana in Compose with provisioned Prometheus datasource and three dashboards
+- Prometheus recording + alert rules (demo thresholds); runbooks; SLO-style indicators (not production SLOs)
+- No Alertmanager notification routing, no automatic remediation
+- [ADR-018](adr/ADR-018-operational-dashboards-and-alerting.md)
 
 ## Phase 7B — Tenancy hardening (optional RLS revisit)
 
 - Revisit PostgreSQL RLS with proven session handling ([ADR-006](adr/ADR-006-postgresql-rls.md))
 - Expand audit of commercial-state access as needed
 
-## Phase 9B+ — Operability
+## Phase 10+ — Operability drills
 
-- Grafana dashboards, alert rules, SLO-style operating views, runbooks
-- Deploy packaging, load/failure drills (Phase 10+)
+- Deploy packaging, load/failure drills
 - No “production-ready” claim without recorded evidence
 
 ## Explicit deferrals

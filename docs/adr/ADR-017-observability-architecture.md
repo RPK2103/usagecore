@@ -88,11 +88,11 @@ PostgreSQL failure does make readiness fail.
 
 ### Known limitations
 
-- No Grafana dashboards, alert rules, or SLO views (Phase 9B).
+- Grafana dashboards, alert rules, and SLO-style views: [ADR-018](ADR-018-operational-dashboards-and-alerting.md) (Phase 9B).
 - No claim of zero trace loss, complete outage detection, or production observability.
 - JDBC SQL spans are not added; Hikari pool metrics are exposed.
 - Live Kafka-down / PostgreSQL-down chaos is Phase 10.
 
 ## Consequences
 
-All three workloads share Actuator + Micrometer + OTel tracing configuration. Custom business metrics live in application-layer facades; domain packages stay free of Micrometer/OTel/MDC. Phase 9B can add Grafana against the same Prometheus/OTLP pipeline without changing commercial semantics.
+All three workloads share Actuator + Micrometer + OTel tracing configuration. Custom business metrics live in application-layer facades; domain packages stay free of Micrometer/OTel/MDC. Phase 9B adds Grafana against the same Prometheus/OTLP pipeline without changing commercial semantics ([ADR-018](ADR-018-operational-dashboards-and-alerting.md)).

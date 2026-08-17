@@ -30,9 +30,9 @@ Shared libraries:
 - [`libraries/database-migrations`](libraries/database-migrations/README.md) — Flyway SQL (Control Plane owns production migrations)
 - [`libraries/event-contracts`](libraries/event-contracts) — versioned Kafka transport envelopes only
 
-## Phase 9A status
+## Phase 9B status
 
-Phase 8B (explicit UsageAdjustment) is complete. **Phase 9A** adds a coherent observability foundation: Micrometer/Prometheus metrics, OpenTelemetry tracing, structured logs, and correlation across HTTP → outbox → Kafka → consumer.
+Phase 8B (explicit UsageAdjustment) and **Phase 9A** (metrics/traces/logs) are complete. **Phase 9B** adds a local Grafana + Prometheus alerting loop (observe → visualize → detect → investigate). Dashboards are not commercial correctness authority. Alert thresholds are demo/engineering defaults, not production SLOs. There is no automatic remediation.
 
 Three independently deployable applications:
 
@@ -40,7 +40,7 @@ Three independently deployable applications:
 | --- | --- |
 | Control Plane | Catalog / commercial configuration (including MeterDefinition → Feature) + **CommercialPeriod** lifecycle; production Flyway owner; blocks FINALIZED while reconciliation is RUNNING |
 | Entitlement Runtime | Authenticated **read-only** entitlement checks against activated snapshots ([ADR-007](docs/adr/ADR-007-entitlement-runtime-read-architecture.md)) |
-| Usage Pipeline | Durable ingestion + outbox + idempotent consumer ledger/aggregates + synchronous quota consume + commercial-period enforcement + reconciliation rebuild/compare/report + explicit UsageAdjustment + **Phase 9A observability** ([ADR-008](docs/adr/ADR-008-kafka-usage-topology.md)–[ADR-017](docs/adr/ADR-017-observability-architecture.md)) |
+| Usage Pipeline | Durable ingestion + outbox + idempotent consumer ledger/aggregates + synchronous quota consume + commercial-period enforcement + reconciliation rebuild/compare/report + explicit UsageAdjustment + observability ([ADR-008](docs/adr/ADR-008-kafka-usage-topology.md)–[ADR-018](docs/adr/ADR-018-operational-dashboards-and-alerting.md)) |
 
 Usage Pipeline Phase 8B:
 
@@ -56,7 +56,7 @@ HTTP 202 on `/events` means durably accepted for asynchronous processing — not
 ## Prerequisites
 
 - Java 21 JDK
-- Docker (for local PostgreSQL, Keycloak, Kafka, Prometheus, OTel Collector, and Testcontainers)
+- Docker (for local PostgreSQL, Keycloak, Kafka, Prometheus, Grafana, OTel Collector, and Testcontainers)
 - Maven Wrapper (included; no system Maven required)
 
 ## Local PostgreSQL + Keycloak + Kafka + observability scrapers
@@ -73,7 +73,8 @@ docker compose -f infrastructure/docker/docker-compose.yml up -d
 | Keycloak | `http://localhost:8081` (admin / admin) |
 | Kafka (KRaft single broker) | `localhost:9092` |
 | Prometheus | `http://localhost:9090` (scrapes host apps via `host.docker.internal`) |
-| OTel Collector | OTLP HTTP `localhost:4318` (debug exporter; no trace UI in 9A) |
+| Grafana | `http://localhost:3000` (local/demo `admin` / `admin`; Prometheus datasource provisioned) |
+| OTel Collector | OTLP HTTP `localhost:4318` (debug exporter; no Tempo/trace UI) |
 | Realm | `usagecore` |
 
 Defaults when running apps:
@@ -148,7 +149,7 @@ curl -s -X POST "http://localhost:8081/realms/usagecore/protocol/openid-connect/
 | Entitlement Runtime | `http://localhost:8082/actuator/health` | `http://localhost:8082/actuator/prometheus` |
 | Usage Pipeline | `http://localhost:8083/actuator/health` | `http://localhost:8083/actuator/prometheus` |
 
-Usage Pipeline readiness depends on PostgreSQL, not Kafka. Observability: [ADR-017](docs/adr/ADR-017-observability-architecture.md), [metrics catalogue](docs/observability/metrics.md), [local setup](docs/observability/local-observability.md). Grafana dashboards are Phase 9B.
+Usage Pipeline readiness depends on PostgreSQL, not Kafka. Observability: [ADR-017](docs/adr/ADR-017-observability-architecture.md), [ADR-018](docs/adr/ADR-018-operational-dashboards-and-alerting.md), [metrics](docs/observability/metrics.md), [alerts](docs/observability/alerts.md), [local setup](docs/observability/local-observability.md), [runbooks](docs/observability/runbooks/).
 
 ## Authenticated local demos (curl)
 
@@ -227,6 +228,6 @@ docker compose -f infrastructure/docker/docker-compose.yml config
 - Redis, MongoDB, Elasticsearch, GraphQL, service mesh
 - AI / LLM components
 - Frontend UI
-- Grafana operational dashboards / alert rules (Phase 9B)
-- Production-ready / exactly-once claims
+- Production notification routing / PagerDuty / automatic incident remediation
+- Production-ready / exactly-once / production SLO claims
 - Claims that Phase 7 finalization proves reconciled aggregate correctness

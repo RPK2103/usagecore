@@ -1,12 +1,16 @@
-# Local Prometheus scrape config for UsageCore Phase 9A.
+# Local Prometheus scrape + rule evaluation for UsageCore Phase 9B.
 # Applications typically run on the host (IDE / mvnw); Prometheus runs in Docker.
 # host.docker.internal is provided via extra_hosts in docker-compose.yml.
 #
 # Do not treat listed targets as healthy unless the applications are actually running.
+# Alert thresholds in rules/ are DEMO / ENGINEERING DEFAULTS, not production SLOs.
 
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
 
 scrape_configs:
   - job_name: usagecore-control-plane
