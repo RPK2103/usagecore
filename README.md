@@ -1,79 +1,216 @@
 # UsageCore
 
-A multi-tenant B2B SaaS **infrastructure** platform for commercial entitlements, usage metering, strict quota enforcement, contract-version history, commercial period finalization, reconciliation, and failure-safe event processing.
+### Multi-tenant entitlement, usage metering & quota infrastructure for B2B SaaS
 
-Java backend / distributed-systems portfolio. No frontend. Not a billing platform, not exactly-once, not a live AWS deployment, not production-ready by adjective.
+UsageCore gives SaaS products one place to define entitlements, enforce usage limits, and keep auditable commercial history.
 
-**Five-minute tour:** [docs/portfolio/reviewer-guide.md](docs/portfolio/reviewer-guide.md)
-**Docs index:** [docs/README.md](docs/README.md)
+<p align="center">
+  <a href="https://github.com/RPK2103/usagecore/actions/workflows/ci.yml"><img src="https://github.com/RPK2103/usagecore/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <img src="https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white" alt="Java 21" />
+  <img src="https://img.shields.io/badge/Spring%20Boot-3-6DB33F?logo=springboot&logoColor=white" alt="Spring Boot 3" />
+  <img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white" alt="PostgreSQL" />
+  <img src="https://img.shields.io/badge/Apache%20Kafka-231F20?logo=apachekafka&logoColor=white" alt="Apache Kafka" />
+  <img src="https://img.shields.io/badge/Kubernetes-326CE5?logo=kubernetes&logoColor=white" alt="Kubernetes" />
+  <img src="https://img.shields.io/badge/Terraform-7B42BC?logo=terraform&logoColor=white" alt="Terraform" />
+  <img src="https://img.shields.io/badge/AWS-232F3E?logo=amazonwebservices&logoColor=white" alt="AWS" />
+</p>
 
-## What it models
+<p align="center"><b>Entitlements</b> · <b>Usage metering</b> · <b>Strict quotas</b> · <b>Contract history</b> · <b>Reconciliation</b></p>
 
-A product like **DataPilot Cloud** sells features (API access, scheduled exports) to tenants (**Acme**, **Globex**). Contracts version over time. Usage is metered asynchronously. Some actions require **strict quota** that must not over-admit under concurrency. Commercial periods finalize. Delayed events must not silently rewrite history. Failures duplicate **transport**, not **business effects**.
+<!--
+VISUAL PLACEHOLDER:
+Add a wide UsageCore hero image here.
 
-## Why it is technically interesting
+Suggested visual:
+- UsageCore logo/title
+- Control Plane
+- Entitlement Runtime
+- Usage Pipeline
+- PostgreSQL + Kafka
+- dark technical product aesthetic
 
-- Explicit **source-of-truth** split: ledger vs aggregates vs quota vs outbox/inbox ([table](docs/architecture/source-of-truth.md)).
-- **Transactional outbox** + **consumer inbox** instead of unsafe dual writes or “exactly-once” claims.
-- **PostgreSQL** as quota concurrency authority across replicas — not a JVM lock.
-- **Commercial finalization** that preserves delayed ledger evidence and quarantines instead of mutating finalized aggregates.
-- **Reconciliation reports**; **adjustments** are explicit and immutable.
-- Evidence is labeled: tests, kind drills, local Gatling, Terraform validate, workflow configuration.
+Recommended file: docs/assets/usagecore-hero.png
+Recommended width: 1200–1600 px
+-->
+
+---
+
+## What is UsageCore?
+
+- Define what each customer is entitled to use — products, features, plans, and versioned contracts.
+- Enforce contracted usage limits under concurrent traffic.
+- Ingest and aggregate product usage asynchronously, without blocking the API on Kafka.
+- Preserve contract versions, commercial periods, and usage history for audit and reconciliation.
+
+## Live Demo
+
+### ▶ Try UsageCore
+
+> **Live:** [Live Demo — ADD DEPLOYED URL]
+
+**Walkthrough:** [Demo walkthrough](docs/demo/README.md) — entitlement check, usage ingest, quota consume, and pipeline inspection.
+
+<!--
+SCREENSHOT PLACEHOLDER — entitlement / usage API demo
+Suggested: entitlement check ALLOW_WITH_LIMIT response beside a usage 202 / consume ACCEPTED pair.
+Where: local demo against Entitlement Runtime :8082 and Usage Pipeline :8083.
+Crop: request + response JSON only, dark editor or HTTP client.
+README placement: Live Demo or Try the core flow.
+-->
+
+---
+
+## Why UsageCore?
+
+| Capability | Benefit |
+| --- | --- |
+| Entitlements | Control which features each customer can access |
+| Strict quotas | Prevent customers from exceeding contracted usage |
+| Usage metering | Record usage without coupling APIs to Kafka processing |
+| Contract history | Keep activated commercial terms as immutable evidence |
+| Reconciliation | Compare canonical ledger usage with derived reporting state |
+| Multi-tenancy | Isolate customer state through authenticated JWT tenant context |
+
+---
+
+## Features
+
+**Commercial configuration** — multi-tenant catalogue of products, features, plans, and plan-feature limits; versioned contracts; entitlement modes `ENABLED` / `DISABLED` / `LIMITED`.
+
+**Entitlements** — authenticated feature-access checks; tenant identity from JWT only; each decision leaves evidence.
+
+**Usage metering** — authenticated ingest with idempotent request handling; event-time `SUM` / `COUNT` / `MAX`; daily and monthly windows; late-event handling.
+
+**Quota enforcement** — strict synchronous consume; contract-aware limits; concurrent admission decided in PostgreSQL.
+
+**Commercial lifecycle** — `OPEN` → `CLOSING` → `RECONCILING` → `FINALIZED`, so a period can close without silently rewriting history when delayed usage arrives.
+
+**Reconciliation & corrections** — deterministic rebuild from the usage ledger; mismatch reporting; quarantined usage; explicit adjustments.
+
+**Operations** — Prometheus, Grafana, OpenTelemetry; failure-recovery tests; Gatling performance lab; Kubernetes/Helm; Terraform AWS architecture; GitHub Actions.
+
+| | |
+| --- | --- |
+| 🔐 Multi-tenant access | 📜 Versioned contracts |
+| ✅ Entitlement decisions | 📊 Usage aggregation |
+| 🚦 Strict quota enforcement | ⏱ Event-time windows |
+| 📦 Transactional outbox | 🔁 Idempotent consumers |
+| 🧾 Usage ledger | 🔍 Reconciliation |
+| 🛠 Explicit corrections | 📈 Observability |
+| 🧪 Failure testing | ⚡ Performance lab |
+| ☸ Kubernetes | ☁️ AWS + Terraform |
+
+---
+
+## How it works
+
+Three independently deployable workloads share PostgreSQL as the source of truth. Kafka carries usage events at-least-once. Keycloak is the local OIDC issuer.
+
+```mermaid
+flowchart LR
+  Client --> CP[Control Plane]
+  Client --> ER[Entitlement Runtime]
+  Client --> UP[Usage Pipeline]
+  CP --> PG[(PostgreSQL)]
+  ER --> PG
+  UP --> PG
+  UP --> KF[Kafka]
+  KF --> UP
+  CP -.-> KC[Keycloak / OIDC]
+  ER -.-> KC
+  UP -.-> KC
+  CP -.-> OBS[Prometheus / OTel]
+  ER -.-> OBS
+  UP -.-> OBS
+```
+
+<!--
+SCREENSHOT PLACEHOLDER — UsageCore architecture visual
+Suggested: three workloads, PostgreSQL as source of truth, Kafka as transport, OIDC on the side.
+Where: export from docs/architecture/diagrams.md or a designed system poster.
+Crop: wide landscape, no ADR/phase labels.
+README placement: How it works, above or below the Mermaid diagram.
+-->
+
+### Durable usage processing
+
+```mermaid
+flowchart TD
+  API["POST /api/v1/usage/events"] --> PG["PostgreSQL<br/>usage_ingestion + outbox"]
+  PG --> KF[Kafka]
+  KF --> IN["Consumer inbox"]
+  IN --> LED[usage_ledger]
+  LED --> AGG[aggregates]
+```
+
+Transport is at-least-once; duplicate business effects are prevented through persisted event identity and the consumer inbox.
+
+---
 
 ## Architecture
 
-Exactly three deployable workloads:
-
-| Workload | Responsibility | Port |
-| --- | --- | --- |
-| **Control Plane** | Catalogue, contracts, commercial periods; production Flyway owner | `8080` |
-| **Entitlement Runtime** | Authenticated **read-only** entitlement checks against activated snapshots | `8082` |
-| **Usage Pipeline** | Durable ingest, outbox, Kafka consume, ledger/aggregates, strict consume, reconciliation, adjustments | `8083` |
-
-Not services:
-
-| Path | What it is |
+| Workload | Purpose |
 | --- | --- |
-| `performance/` | Engineering lab (Gatling), not a runtime |
-| `infrastructure/terraform/` | Infrastructure **code**, not a running cloud |
-| `libraries/*` | Flyway SQL and Kafka envelopes — not deployables |
+| **Control Plane** `:8080` | Configure tenants, products, plans, contracts, and commercial periods |
+| **Entitlement Runtime** `:8082` | Authenticated read-only entitlement decisions against activated snapshots |
+| **Usage Pipeline** `:8083` | Ingest usage, enforce quota, and process usage asynchronously |
 
-Canonical diagram: [docs/architecture/diagrams.md](docs/architecture/diagrams.md). PostgreSQL is correctness authority. Kafka is at-least-once transport.
+---
 
-## Core guarantees (actually designed and tested)
+## Engineering Highlights
 
-1. Tenant identity from JWT only — never body/header authority.
-2. Activated `ContractVersion` is immutable historical evidence; plans are templates.
-3. `POST /usage/events` HTTP **202** = PostgreSQL accepted ingest+outbox — not consumer/Kafka/quota completion.
-4. Duplicate Kafka delivery does not double-apply (`processed_event`).
-5. Strict consume: limit 100, consumed 90, 20 concurrent × 1 → **10 accepted**, final **100**.
-6. Delayed usage after FINALIZED can ledger + exception without rewriting aggregates.
-7. Reconciliation does not auto-repair; adjustments are explicit.
-8. Usage Pipeline readiness depends on PostgreSQL, not Kafka.
+- PostgreSQL-backed transactional outbox for durable asynchronous ingestion.
+- Consumer inbox prevents duplicate Kafka delivery from duplicating business state.
+- Database-backed quota enforcement remains correct across concurrent replicas.
+- Event-time daily/monthly usage windows preserve original occurrence time.
+- Finalized commercial periods keep delayed usage as ledger evidence and quarantine it instead of rewriting aggregates.
+- Reconciliation rebuilds expected state from canonical ledger evidence; corrections are explicit.
+- Failure scenarios are tested against real PostgreSQL/Kafka containers.
+- Kubernetes scaling and restart behavior was validated on a local kind cluster.
 
-Details and caveats: [docs/evidence/engineering-evidence.md](docs/evidence/engineering-evidence.md).
+## Built around real backend failure cases
 
-## Flagship APIs (do not blur)
+Kafka unavailable during ingest · duplicate event delivery · crash between Kafka ACK and outbox status update · consumer redelivery after DB commit · concurrent quota exhaustion · late usage events · finalized commercial periods · pod restart with pending outbox work
 
-| API | Meaning |
+[Failure matrix](docs/resilience/failure-matrix.md) · [Kubernetes drills](docs/kubernetes/failure-matrix.md)
+
+---
+
+## Tech Stack
+
+| Area | Technologies |
 | --- | --- |
-| `POST /api/v1/entitlements/check` | Read-only commercial decision. Does **not** consume quota. |
-| `POST /api/v1/usage/events` | Async metering. **202** = durable PostgreSQL acceptance. |
-| `POST /api/v1/usage/consume` | Synchronous strict quota admission. HTTP 200 with `ACCEPTED` or `REJECTED`. |
+| **Backend** | Java 21, Spring Boot 3, Spring Security, Spring Data JPA (Control Plane), JDBC (Entitlement Runtime, Usage Pipeline), Maven |
+| **Data & messaging** | PostgreSQL, Flyway, Apache Kafka |
+| **Identity** | OIDC / JWT (Keycloak locally) |
+| **Testing** | JUnit 5, Mockito, REST Assured, Testcontainers, ArchUnit, Awaitility |
+| **Observability** | Micrometer, OpenTelemetry, Prometheus, Grafana |
+| **Performance** | Gatling, Java Flight Recorder, PostgreSQL `EXPLAIN ANALYZE` |
+| **Platform** | Docker, Kubernetes, Helm, Terraform, AWS architecture, GitHub Actions |
 
-Examples: [docs/demo/api-examples.md](docs/demo/api-examples.md).
+## Observable by default
 
-## Stack (what is actually in the repo)
+- Structured, correlation-aware logs
+- Prometheus metrics
+- OpenTelemetry tracing (W3C Trace Context)
+- Grafana operational dashboards
+- Alert rules and runbooks
 
-Java 21 · Spring Boot 3 · Maven · PostgreSQL · Flyway · Kafka (JSON) · Testcontainers · JUnit 5 · REST Assured · Mockito · ArchUnit · Micrometer · OpenTelemetry · Prometheus · Grafana · Gatling · JFR · Docker · Kubernetes (kind) · Helm · Terraform · AWS **architecture** · GitHub Actions · Keycloak (**local** IdP)
+[Local observability](docs/observability/local-observability.md)
 
-Not used (intentionally): Redis, Kafka Streams, MongoDB, Elasticsearch, GraphQL, service mesh, AI/LLM.
+<!--
+SCREENSHOT PLACEHOLDER — Grafana dashboard
+Suggested: UsageCore — Usage Delivery & Commercial Enforcement (outbox pending, quota decisions, consumer results).
+Where: local Grafana at http://localhost:3000 after Compose + the three workloads are running.
+Crop: dashboard panels only, 1200–1600 px wide.
+README placement: Observable by default.
+-->
 
-Local auth is Keycloak. Cloud target is an external OIDC issuer (Cognito is a possible later choice and is **not configured**).
+---
 
-## How to run (one local path)
+## Run locally
 
-Prerequisites: Java 21, Docker.
+**Prerequisites:** Java 21, Docker, Docker Compose.
 
 ```powershell
 docker compose -f infrastructure/docker/docker-compose.yml up -d
@@ -87,69 +224,61 @@ java -jar applications/usage-pipeline/target/usage-pipeline-0.1.0-SNAPSHOT.jar
 .\performance\scripts\seed.ps1
 ```
 
-Unix: `./mvnw` and the same `java -jar` / Compose commands.
+Unix: `./mvnw` with the same Compose and `java -jar` commands.
 
-Do not use `.\mvnw.cmd -pl applications/<app> -am spring-boot:run` from the repo root (`-am` includes the parent POM, which has no main class).
+Full local setup → [docs/demo/README.md](docs/demo/README.md)
 
-Compose ports: PostgreSQL `5432`, Keycloak `8081`, Kafka `9092`, Prometheus `9090`, Grafana `3000` (local `admin`/`admin`), OTel `4318`. Compose credentials are **local development only**.
+## Try the core flow
 
-Demo users (password = username unless noted): `acme-developer`, `platform-admin`, `globex-developer`, … — [demo walkthrough](docs/demo/README.md). Acme JWT `tenant_id` is the placeholder `11111111-1111-1111-1111-111111111111`; the seeder uses that UUID on purpose.
+1. Authenticate with the local OIDC provider (Keycloak).
+2. Check an entitlement.
+3. Submit a usage event.
+4. Consume strict quota.
+5. Inspect usage / aggregate state.
 
-## How to demo
+Commands and expected responses: [Demo walkthrough](docs/demo/README.md) · [API examples](docs/demo/api-examples.md)
 
-Follow [docs/demo/README.md](docs/demo/README.md) (~10–15 minutes): token → entitlement check → usage 202 → SQL ledger → strict consume → point at existing resilience/performance/Kubernetes evidence.
-
-## What was tested
-
-`.\mvnw.cmd clean verify` — domain, REST, security, PostgreSQL/Kafka Testcontainers, concurrency, resilience seams, ArchUnit. Count is the Maven total after the run, not a slogan. Categories: [docs/evidence/test-strategy.md](docs/evidence/test-strategy.md).
-
-Gatling is **not** part of `clean verify`.
-
-## What was measured
-
-Local Gatling on a documented laptop (2026-08-18). Separate paths for check / 202 ingest / consume. **No production optimization was justified.** Summary: [docs/performance/summary.md](docs/performance/summary.md). Not cloud capacity.
-
-## What was not proven
-
-| Area | Status |
+| API | Purpose |
 | --- | --- |
-| Kubernetes on **kind** | Live smoke + failure drills (Phase 12) |
-| AWS EKS/RDS/MSK | Terraform **configuration validated**; not live-applied |
-| GitHub Actions on GitHub | First `main` push of Phase 14: Terraform + Container succeeded; CI (mvnw mode) and Trivy IaC failed. See [docs/cicd/evidence.md](docs/cicd/evidence.md) |
-| PostgreSQL RLS | **Deferred** (Phase 7B) |
-| Disaster recovery / AZ failover / autoscaling | Deferred or unexecuted |
+| `POST /api/v1/entitlements/check` | Check whether a feature is allowed |
+| `POST /api/v1/usage/events` | Record asynchronous usage |
+| `POST /api/v1/usage/consume` | Perform strict quota-aware consumption |
 
-Full list: [docs/limitations.md](docs/limitations.md). Roadmap: [docs/roadmap.md](docs/roadmap.md).
+---
 
-## Validation (local, no AWS spend)
+## Deployment
 
-```powershell
-.\mvnw.cmd clean verify
-docker compose -f infrastructure/docker/docker-compose.yml config --quiet
+- Docker Compose for local dependencies
+- Kubernetes + Helm, validated on kind
+- AWS target architecture: EKS, RDS, MSK
+- Terraform IaC
+- GitHub Actions CI/CD
+
+```mermaid
+flowchart LR
+  GH[GitHub Actions] --> ECR[ECR]
+  ECR --> EKS[EKS]
+  EKS --> RDS[(RDS)]
+  EKS --> MSK[MSK]
 ```
 
-Helm / Terraform (no apply):
+[Kubernetes](docs/kubernetes/README.md) · [AWS architecture](docs/aws/README.md) · [CI/CD](docs/cicd/README.md)
 
-```powershell
-helm lint infrastructure/kubernetes/helm/usagecore
-helm template usagecore infrastructure/kubernetes/helm/usagecore --namespace usagecore | Out-Null
-helm template usagecore infrastructure/kubernetes/helm/usagecore --namespace usagecore -f infrastructure/kubernetes/helm/usagecore/values-aws.yaml | Out-Null
+<!--
+SCREENSHOT PLACEHOLDER — Kubernetes workload view
+Suggested: kubectl/k9s or Helm release showing control-plane, entitlement-runtime, usage-pipeline Ready.
+Where: local kind cluster from docs/kubernetes/.
+Crop: workload list + probes/replicas; no secrets.
+README placement: Deployment.
+-->
 
-terraform -chdir=infrastructure/terraform/environments/dev init -backend=false
-terraform fmt -check -recursive infrastructure/terraform
-terraform -chdir=infrastructure/terraform/environments/dev validate
-```
+---
 
-`terraform apply` is cost-bearing and requires explicit approval.
+## Explore the engineering
 
-## Further reading
-
-| Topic | Link |
+| | |
 | --- | --- |
-| Interview stories | [docs/portfolio/interview-guide.md](docs/portfolio/interview-guide.md) |
-| Evidence index | [docs/evidence/engineering-evidence.md](docs/evidence/engineering-evidence.md) |
-| ADRs | [docs/adr/README.md](docs/adr/README.md) |
-| Security | [docs/security/README.md](docs/security/README.md) |
-| Kubernetes | [docs/kubernetes/README.md](docs/kubernetes/README.md) |
-| AWS | [docs/aws/README.md](docs/aws/README.md) |
-| CI/CD | [docs/cicd/README.md](docs/cicd/README.md) |
+| [Architecture](docs/architecture/diagrams.md) | [Demo walkthrough](docs/demo/README.md) |
+| [Engineering evidence](docs/evidence/engineering-evidence.md) | [Resilience](docs/resilience/failure-matrix.md) |
+| [Performance](docs/performance/summary.md) | [Kubernetes](docs/kubernetes/README.md) |
+| [AWS](docs/aws/README.md) · [CI/CD](docs/cicd/README.md) | [Full docs index](docs/README.md) |
