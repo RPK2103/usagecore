@@ -30,7 +30,7 @@
 
     <properties>
         <java.version>21</java.version>
-        <archunit.version>1.4.1</archunit.version>
+        <archunit.version>1.5.0</archunit.version>
         <gatling.version>3.15.1</gatling.version>
         <gatling-maven-plugin.version>4.21.10</gatling-maven-plugin.version>
     </properties>
