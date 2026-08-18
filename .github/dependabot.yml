@@ -5,6 +5,13 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    # UsageCore v1 accepts Spring Boot 3 compatible maintenance updates.
+    # Spring Boot 4 requires an intentional migration milestone; do not open
+    # major Boot parent/ecosystem PRs as ordinary weekly maintenance.
+    ignore:
+      - dependency-name: "org.springframework.boot:*"
+        update-types:
+          - "version-update:semver-major"
     groups:
       maven-minor-patch:
         update-types:

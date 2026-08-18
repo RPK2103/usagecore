@@ -57,15 +57,43 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+      pull-requests: read
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Probe dependency graph
+        id: probe
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          HTTP=$(curl -sS -o /tmp/dep-graph-compare.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/dependency-graph/compare/${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}")
+          echo "http_status=${HTTP}" >> "${GITHUB_OUTPUT}"
+          if [ "${HTTP}" = "200" ] || [ "${HTTP}" = "409" ]; then
+            echo "available=true" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          echo "available=false" >> "${GITHUB_OUTPUT}"
+          echo "::notice::GitHub Dependency Review compare API returned HTTP ${HTTP}. The action is skipped until Dependency graph snapshots are available for this repository. Enable Dependency graph under Settings → Code security. This skip does not attest the PR is free of vulnerable dependencies. See docs/cicd/security.md."
+          if [ "${HTTP}" = "403" ] || [ "${HTTP}" = "404" ]; then
+            exit 0
+          fi
+          echo "::error::Unexpected dependency-graph compare status ${HTTP}"
+          cat /tmp/dep-graph-compare.json >&2 || true
+          exit 1
+
       - name: Dependency review
+        if: steps.probe.outputs.available == 'true'
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: high
           comment-summary-in-pr: false
+          retry-on-snapshot-warnings: true
 
   trivy-iac:
     name: Security / Trivy IaC

@@ -3,15 +3,18 @@ package io.usagecore.usagepipeline.adapters.inbound.http;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 import io.restassured.specification.RequestSpecification;
+import io.usagecore.usagepipeline.support.CommercialPeriodFixtureSeeder;
 import io.usagecore.usagepipeline.support.FixedClockTestConfiguration;
 import io.usagecore.usagepipeline.support.RecordingUsageProcessorConfiguration;
 import io.usagecore.usagepipeline.support.TestJwtSupport;
 import io.usagecore.usagepipeline.support.TestSecurityConfiguration;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -42,6 +45,9 @@ abstract class AbstractUsageApiIntegrationTest {
     @LocalServerPort
     private int port;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @DynamicPropertySource
     static void infrastructureProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
@@ -65,6 +71,9 @@ abstract class AbstractUsageApiIntegrationTest {
         RestAssured.port = port;
         RestAssured.basePath = "/api/v1";
         RestAssured.enableLoggingOfRequestAndResponseIfValidationFails();
+        // Classes sharing this static PostgreSQL container must not leak FINALIZED
+        // commercial periods into later quota consume tests (CI run-order dependent).
+        new CommercialPeriodFixtureSeeder(jdbcTemplate).clearCommercialTables();
     }
 
     protected RequestSpecification givenBearer(String token) {
