@@ -41,7 +41,7 @@ Recommended width: 1200–1600 px
 - Enforce contracted usage limits under concurrent traffic.
 - Ingest and aggregate product usage asynchronously, without blocking the API on Kafka.
 - Preserve contract versions, commercial periods, and usage history for audit and reconciliation.
-
+<!--
 ## Live Demo
 
 ### ▶ Try UsageCore
@@ -50,7 +50,7 @@ Recommended width: 1200–1600 px
 
 **Walkthrough:** [Demo walkthrough](docs/demo/README.md) — entitlement check, usage ingest, quota consume, and pipeline inspection.
 
-<!--
+
 SCREENSHOT PLACEHOLDER — entitlement / usage API demo
 Suggested: entitlement check ALLOW_WITH_LIMIT response beside a usage 202 / consume ACCEPTED pair.
 Where: local demo against Entitlement Runtime :8082 and Usage Pipeline :8083.
