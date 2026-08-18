@@ -86,3 +86,33 @@ output "acm_certificate_arn" {
 output "helm_image_tag" {
   value = var.image_tag
 }
+
+output "github_oidc_provider_arn" {
+  value = module.github_oidc.oidc_provider_arn
+}
+
+output "github_ecr_publish_role_arn" {
+  value = module.github_oidc.ecr_publish_role_arn
+}
+
+output "github_terraform_plan_role_arn" {
+  value = module.github_oidc.terraform_plan_role_arn
+}
+
+output "github_terraform_apply_role_arn" {
+  value = module.github_oidc.terraform_apply_role_arn
+}
+
+output "github_helm_deploy_role_arn" {
+  value = module.github_oidc.helm_deploy_role_arn
+}
+
+output "github_oidc_subjects" {
+  value = {
+    ecr_publish    = module.github_oidc.oidc_subject_ecr_publish
+    terraform_plan = module.github_oidc.oidc_subject_terraform_plan
+    deploy         = module.github_oidc.oidc_subject_deploy
+    repository     = module.github_oidc.github_repository
+    environment    = module.github_oidc.github_environment
+  }
+}

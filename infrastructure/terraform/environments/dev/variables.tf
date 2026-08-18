@@ -221,3 +221,38 @@ variable "image_tag" {
   description = "Immutable image tag (git SHA) for Helm values-aws.yaml. Not latest."
   default     = "REPLACE_WITH_GIT_SHA"
 }
+
+variable "github_repository" {
+  type        = string
+  description = "GitHub repository in owner/name form used in OIDC trust. Not a personal username in workflow YAML."
+  default     = "example-org/UsageCore"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", var.github_repository))
+    error_message = "github_repository must be owner/name."
+  }
+}
+
+variable "github_environment" {
+  type        = string
+  description = "GitHub Environment name bound to Terraform apply and Helm deploy roles."
+  default     = "dev"
+}
+
+variable "create_github_oidc_provider" {
+  type        = bool
+  description = "Create the account-level GitHub OIDC provider. Set false if the account already has token.actions.githubusercontent.com."
+  default     = true
+}
+
+variable "kubernetes_namespace" {
+  type        = string
+  description = "Kubernetes namespace for UsageCore Helm releases."
+  default     = "usagecore"
+}
+
+variable "terraform_state_bucket_arn" {
+  type        = string
+  description = "Optional S3 bucket ARN from infrastructure/terraform/bootstrap. Empty until remote state exists."
+  default     = ""
+}

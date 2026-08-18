@@ -15,12 +15,13 @@ output "username" {
 }
 
 output "jdbc_url" {
-  value = "jdbc:postgresql://${aws_db_instance.this.address}:${aws_db_instance.this.port}/${aws_db_instance.this.db_name}"
+  description = "USAGECORE_DB_URL for AWS. sslmode=require is the RDS TLS client setting; credentials come from Secrets Manager, not this output."
+  value       = "jdbc:postgresql://${aws_db_instance.this.address}:${aws_db_instance.this.port}/${aws_db_instance.this.db_name}?sslmode=require"
 }
 
 output "master_user_secret_arn" {
   description = "Secrets Manager ARN created by RDS managed master password. The secret value is not output."
-  value       = try(aws_db_instance.this.master_user_secret[0].secret_arn, null)
+  value       = try(aws_db_instance.this.master_user_secret[0].secret_arn, "")
   sensitive   = true
 }
 

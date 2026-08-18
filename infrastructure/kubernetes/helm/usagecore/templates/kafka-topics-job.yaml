@@ -31,4 +31,50 @@ spec:
               /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic usagecore.usage.received.v1 --partitions 3 --replication-factor 1
               /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic usagecore.usage.received.v1.dlq --partitions 3 --replication-factor 1
               echo "Topics ready."
+{{- else if .Values.kafka.saslTopicsJob }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kafka-topics-init
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "usagecore.appLabels" (dict "name" "kafka" "component" "topic-init" "Values" .Values "Chart" .Chart "Release" .Release) | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      automountServiceAccountToken: false
+      containers:
+        - name: init-topics
+          image: "{{ .Values.images.kafka.repository }}:{{ .Values.images.kafka.tag }}"
+          env:
+            - name: BOOTSTRAP
+              valueFrom:
+                configMapKeyRef:
+                  name: usagecore-config
+                  key: USAGECORE_KAFKA_BOOTSTRAP_SERVERS
+            - name: USAGECORE_KAFKA_SASL_JAAS_CONFIG
+              valueFrom:
+                secretKeyRef:
+                  name: usagecore-secrets
+                  key: USAGECORE_KAFKA_SASL_JAAS_CONFIG
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -euo pipefail
+              umask 077
+              props="$(mktemp)"
+              trap 'rm -f "${props}"' EXIT
+              printf 'security.protocol=SASL_SSL\n' > "${props}"
+              printf 'sasl.mechanism=SCRAM-SHA-512\n' >> "${props}"
+              printf 'sasl.jaas.config=%s\n' "${USAGECORE_KAFKA_SASL_JAAS_CONFIG}" >> "${props}"
+              /opt/kafka/bin/kafka-topics.sh --bootstrap-server "${BOOTSTRAP}" --command-config "${props}" --create --if-not-exists --topic usagecore.usage.received.v1 --partitions 3 --replication-factor 2
+              /opt/kafka/bin/kafka-topics.sh --bootstrap-server "${BOOTSTRAP}" --command-config "${props}" --create --if-not-exists --topic usagecore.usage.received.v1.dlq --partitions 3 --replication-factor 2
+              echo "MSK topics ready."
 {{- end }}

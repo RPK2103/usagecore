@@ -26,6 +26,7 @@ postgres:
 
 kafka:
   enabled: false
+  saslTopicsJob: true
 
 keycloak:
   enabled: false
@@ -38,9 +39,19 @@ config:
   dbHost: REPLACE_RDS_ENDPOINT
   dbPort: "5432"
   dbName: usagecore
+  dbSslMode: require
   kafkaBootstrapServers: REPLACE_MSK_BOOTSTRAP_BROKERS
   jwkSetUri: REPLACE_EXTERNAL_OIDC_JWKS_URI
   otlpEnabled: "false"
+  kafka:
+    sasl:
+      # SPRING_PROFILES_ACTIVE=aws + JAAS from usagecore-secrets (Secrets Manager sync).
+      enabled: true
+
+release:
+  gitSha: REPLACE_WITH_GIT_SHA
+  imageTag: REPLACE_WITH_GIT_SHA
+  imageDigest: ""
 
 controlPlane:
   enabled: true

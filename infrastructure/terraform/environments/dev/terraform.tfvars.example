@@ -44,3 +44,11 @@ acm_certificate_arn = ""
 
 # Immutable image reference for Helm. Do not use latest.
 image_tag = "REPLACE_WITH_GIT_SHA"
+
+# GitHub Actions OIDC. Replace example-org with the real GitHub owner.
+github_repository            = "example-org/UsageCore"
+github_environment           = "dev"
+create_github_oidc_provider  = true
+kubernetes_namespace         = "usagecore"
+# Set after infrastructure/terraform/bootstrap apply.
+terraform_state_bucket_arn   = ""

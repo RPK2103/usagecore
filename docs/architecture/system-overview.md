@@ -150,5 +150,35 @@ Internet / client
 | Docker Compose | Developer dependency stack for host-run JVMs |
 | kind + Helm | Local Kubernetes operability evidence (Phase 12) |
 | AWS Terraform | Target cloud topology; **configuration validated**, not live-applied in this phase |
+| GitHub Actions | PR gates, image identity, OIDC-gated deploy; **configuration**, not live GitHub/AWS execution unless recorded |
 
 See [ADR-022](../adr/ADR-022-aws-deployment-architecture-and-terraform.md) and [AWS docs](../aws/README.md).
+
+## Delivery (Phase 14)
+
+```
+Developer
+        │
+        ▼
+   GitHub pull request
+        │
+        ▼
+   CI + security + image build
+        │
+        ▼
+   merge to main
+        │
+        ▼
+   immutable images (git SHA)
+        │
+        ▼
+   optional ECR publish (OIDC)
+        │
+        ▼
+   gated dev deploy (environment + workflow_dispatch)
+        │
+        ▼
+   EKS + Helm + smoke
+```
+
+Runtime architecture is unchanged: three workloads, PostgreSQL authority, Kafka at-least-once transport. See [CI/CD docs](../cicd/README.md) and [ADR-023](../adr/ADR-023-github-actions-ci-cd-and-supply-chain-security.md).

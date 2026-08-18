@@ -69,3 +69,9 @@ out/
 # Kubernetes / local cluster artifacts
 kind-export/
 *.kubeconfig.local
+
+# CI / local scanner outputs
+*.tfplan
+tfplan
+sbom-*.json
+usagecore-images.tar.gz

@@ -78,7 +78,7 @@ Redis/ElastiCache, DynamoDB, API Gateway, CloudFront, WAF, Lambda, SQS/SNS, Karp
 
 - A senior engineer can inspect Terraform and docs and see how UsageCore would run on AWS.
 - Live AWS behavior remains unproven until apply and drills are authorized.
-- Phase 14 may automate image push, apply, Helm, and secret sync.
+- Phase 14 automates image push, apply gates, Helm, and secret sync as configuration. Live AWS apply remains unauthorized until spend is approved.
 - Phase 7B PostgreSQL RLS remains an optional deferred milestone; cloud hosting does not replace it.
 
 ## What Terraform validation proves

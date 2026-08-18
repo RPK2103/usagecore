@@ -75,6 +75,30 @@ runAsUser: 10001
       key: USAGECORE_OTLP_ENABLED
 {{- end }}
 
+{{- define "usagecore.releaseAnnotations" -}}
+{{- with .Values.release.gitSha }}
+usagecore.io/git-sha: {{ . | quote }}
+{{- end }}
+{{- with .Values.release.imageTag }}
+usagecore.io/image-tag: {{ . | quote }}
+{{- end }}
+{{- with .Values.release.imageDigest }}
+usagecore.io/image-digest: {{ . | quote }}
+{{- end }}
+{{- end }}
+
+{{- define "usagecore.kafkaSaslEnv" -}}
+{{- if .Values.config.kafka.sasl.enabled }}
+- name: SPRING_PROFILES_ACTIVE
+  value: "aws"
+- name: USAGECORE_KAFKA_SASL_JAAS_CONFIG
+  valueFrom:
+    secretKeyRef:
+      name: usagecore-secrets
+      key: USAGECORE_KAFKA_SASL_JAAS_CONFIG
+{{- end }}
+{{- end }}
+
 {{- define "usagecore.probes" -}}
 startupProbe:
   httpGet:

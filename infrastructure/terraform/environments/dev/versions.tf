@@ -8,18 +8,12 @@ terraform {
     }
   }
 
-  # Local backend for Phase 13 validation.
+  # Local backend so fmt/validate work without AWS.
   #
-  # A future CI/production backend should use encrypted S3 with native lock files:
+  # Before a real automated apply, copy backend-s3.hcl.example and run:
+  #   terraform init -backend-config=backend-s3.hcl
   #
-  #   backend "s3" {
-  #     bucket       = "example-usagecore-tfstate"
-  #     key          = "environments/dev/terraform.tfstate"
-  #     region       = "us-east-1"
-  #     encrypt      = true
-  #     use_lockfile = true
-  #   }
-  #
-  # DynamoDB-based locking is deprecated in current Terraform S3 backend docs.
-  # Do not provision that backend in this stack (bootstrap circular dependency).
+  # Native S3 lock files (use_lockfile = true) replace DynamoDB locking.
+  # The state bucket is provisioned by infrastructure/terraform/bootstrap,
+  # which is a separate stack to avoid a circular dependency.
 }

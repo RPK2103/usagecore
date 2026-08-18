@@ -36,6 +36,10 @@ Public + private endpoint is the dev convenience trade-off. Fully private contro
 | EKS cluster | AWS-managed control plane | `AmazonEKSClusterPolicy` |
 | EKS node | kubelet, CNI, ECR pull, SSM | No SSH |
 | ALB controller | Recommended ELB/EC2/ACM actions | Pod Identity; WAF/Shield/Cognito omitted |
+| GitHub ECR publish | ecr:GetAuthorizationToken + push to three repos | OIDC; no delete |
+| GitHub Terraform plan | ReadOnlyAccess + optional state bucket | OIDC; main ref only |
+| GitHub Terraform apply | Stack management; not AdministratorAccess | OIDC; environment `dev` |
+| GitHub Helm deploy | EKS kubeconfig, two secrets, ECR pull | OIDC; namespaced EKS access |
 | Application pods | none | Apps talk to RDS/MSK/OIDC; they do not call AWS APIs in this design |
 
 No `AdministratorAccess`, `PowerUserAccess`, or workload `*` admin policies.
@@ -48,9 +52,9 @@ Describe-style `Resource = "*"` on the ALB controller policy matches the upstrea
 
 | Secret | How it is created | Value in Terraform? | Kubernetes |
 | --- | --- | --- | --- |
-| RDS master password | `manage_master_user_password = true` | No plaintext output | Sync deferred to Phase 14 |
+| RDS master password | `manage_master_user_password = true` | No plaintext output | Deploy job syncs into `usagecore-secrets` |
 | MSK SCRAM | Secrets Manager container `AmazonMSK_*` | No version written | Same |
-| OIDC client (optional) | Secrets Manager container | No version written | Same |
+| OIDC client (optional) | Secrets Manager container | No version written | Not required for JWKS |
 
 `values-aws.yaml` sets `secrets.create: false` so Helm does not embed placeholder production passwords.
 
@@ -75,7 +79,7 @@ One customer-managed KMS key is **not** created. AWS-managed keys keep cost/oper
 
 ## Authentication to Kafka
 
-MSK enables SASL/SCRAM and disables unauthenticated access. IAM auth is not enabled, to avoid forcing a Java client-library change in this phase. Spring Kafka SCRAM configuration remains a deploy-time integration (Phase 14).
+MSK enables SASL/SCRAM and disables unauthenticated access. IAM auth is not enabled. Usage Pipeline `application-aws.yml` maps SASL_SSL / SCRAM-SHA-512; JAAS is injected from Kubernetes Secret at deploy time. Local PLAINTEXT is unchanged.
 
 ## Authorization of the product
 

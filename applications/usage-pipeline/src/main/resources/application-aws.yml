@@ -1,0 +1,18 @@
+# AWS MSK SASL/SCRAM/TLS overlay.
+# Activated only when SPRING_PROFILES_ACTIVE includes aws.
+# Local Docker Compose and kind remain on application.yml PLAINTEXT defaults.
+#
+# USAGECORE_KAFKA_SASL_JAAS_CONFIG must be injected at runtime from Secrets Manager.
+# Do not put username/password in this file or in Helm values.
+
+spring:
+  kafka:
+    properties:
+      security.protocol: SASL_SSL
+      sasl.mechanism: SCRAM-SHA-512
+      sasl.jaas.config: ${USAGECORE_KAFKA_SASL_JAAS_CONFIG}
+
+logging:
+  level:
+    org.apache.kafka.common.config.AbstractConfig: WARN
+    org.apache.kafka.common.security: WARN

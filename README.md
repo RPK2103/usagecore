@@ -65,6 +65,18 @@ terraform validate
 
 See [ADR-022](docs/adr/ADR-022-aws-deployment-architecture-and-terraform.md) and [docs/aws/](docs/aws/README.md).
 
+## Phase 14 status
+
+**Phase 14** adds GitHub Actions CI/CD: PR verification, supply-chain scanning, SHA-tagged images, GitHub OIDC to AWS (no long-lived access keys), Terraform plan separated from apply, and a gated `dev` Helm deploy. This is **not** a live AWS deployment and **not** a claim that GitHub-hosted workflows have already run.
+
+```text
+Pull request → CI + security + image build
+main → immutable images → optional ECR
+workflow_dispatch + environment `dev` → optional terraform apply / Helm / smoke
+```
+
+See [ADR-023](docs/adr/ADR-023-github-actions-ci-cd-and-supply-chain-security.md) and [docs/cicd/](docs/cicd/README.md).
+
 ## Phase 10 status
 
 Phase 9B (Grafana + Prometheus alerts + runbooks) is complete. **Phase 10** proves selected failure windows: Kafka publication outage/recovery, outbox ACK-before-PUBLISHED duplicates, consumer commit/offset gap, PostgreSQL unavailability, poison/DLQ isolation, and delayed delivery across CommercialPeriod finalization.

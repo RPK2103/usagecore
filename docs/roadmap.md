@@ -150,7 +150,7 @@ Milestones are sequential. Each builds only the workloads it needs.
 - Live drills: Kafka/PostgreSQL outage, pending-outbox pod restart, scale, rollout
 - [ADR-021](adr/ADR-021-kubernetes-packaging-and-operability.md), [kubernetes docs](kubernetes/README.md)
 
-## Phase 13 — AWS architecture and Terraform (current)
+## Phase 13 — AWS architecture and Terraform
 
 - Terraform for a single `dev` environment: VPC, EKS, RDS PostgreSQL 16, provisioned MSK, ECR (three images), IAM / EKS Pod Identity, Secrets Manager containers
 - Helm reuse via `values-aws.yaml` (no second chart; in-cluster Postgres/Kafka/Keycloak disabled)
@@ -164,17 +164,22 @@ Milestones are sequential. Each builds only the workloads it needs.
 - Revisit PostgreSQL RLS with proven session handling ([ADR-006](adr/ADR-006-postgresql-rls.md))
 - Expand audit of commercial-state access as needed
 
-## Phase 14 — CI/CD deployment automation (deferred)
+## Phase 14 — CI/CD, supply-chain security, and gated delivery (current)
 
-- Image build/push to ECR, Terraform plan/apply gates, Helm release, secret synchronization
-- IaC / container / dependency scanning in CI
-- No “production-ready” claim without recorded evidence
+- GitHub Actions: PR Maven verify, Terraform fmt/validate, Helm/Compose checks
+- Security: CodeQL, dependency review, Trivy IaC/images; Dependabot weekly (no auto-merge)
+- Immutable images (git SHA), optional ECR publish via OIDC
+- Terraform plan ≠ apply; apply and Helm behind `workflow_dispatch` + environment `dev`
+- AWS Kafka SASL_SSL/SCRAM configuration for Usage Pipeline; local PLAINTEXT preserved
+- Secrets Manager → Kubernetes Secret at deploy time; ALB controller install as platform step
+- Evidence: local static validation. **Not** a live AWS apply, ECR push, or GitHub-hosted run unless recorded
+- [ADR-023](adr/ADR-023-github-actions-ci-cd-and-supply-chain-security.md), [CI/CD docs](cicd/README.md)
 
-## Phase 15+ — Remaining delivery hardening (deferred)
+## Phase 15 — Portfolio hardening / final repository audit (deferred)
 
-- Optional production topology upgrades (Multi-AZ RDS, NAT per AZ, interface VPC endpoints, ACM/DNS)
+- Presentation, documentation consistency, optional production topology upgrades
 - Live AWS failure drills and backup restoration evidence when spend is authorized
 
 ## Explicit deferrals
 
-PostgreSQL RLS (Phase 7B) · CI/CD apply automation (Phase 14) · live AWS deployment unless explicitly approved · Redis/Mongo/ES/GraphQL/mesh without measured need · Cognito until production IdP cutover · Schema Registry/Avro until demonstrated · AI/LLM · Frontend
+PostgreSQL RLS (Phase 7B) · live AWS deployment unless explicitly approved · Redis/Mongo/ES/GraphQL/mesh without measured need · Cognito until production IdP cutover · Schema Registry/Avro until demonstrated · AI/LLM · Frontend

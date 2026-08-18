@@ -1,0 +1,9 @@
+# Copy to backend-s3.hcl after infrastructure/terraform/bootstrap is applied.
+# Do not commit a file that contains a real account-specific bucket name if that
+# is considered sensitive for this repository.
+
+bucket       = "usagecore-tfstate-example-replace-me"
+key          = "environments/dev/terraform.tfstate"
+region       = "us-east-1"
+encrypt      = true
+use_lockfile = true

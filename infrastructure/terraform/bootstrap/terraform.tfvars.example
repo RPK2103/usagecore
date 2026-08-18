@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars before a real bootstrap apply.
+# terraform.tfvars is gitignored.
+
+aws_region         = "us-east-1"
+state_bucket_name  = "usagecore-tfstate-example-replace-me"
+force_destroy      = false

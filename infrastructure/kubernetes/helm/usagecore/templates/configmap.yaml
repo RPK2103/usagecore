@@ -6,7 +6,7 @@ metadata:
   labels:
     {{- include "usagecore.appLabels" (dict "name" "usagecore" "component" "config" "Values" .Values "Chart" .Chart "Release" .Release) | nindent 4 }}
 data:
-  USAGECORE_DB_URL: "jdbc:postgresql://{{ .Values.config.dbHost }}:{{ .Values.config.dbPort }}/{{ .Values.config.dbName }}"
+  USAGECORE_DB_URL: "jdbc:postgresql://{{ .Values.config.dbHost }}:{{ .Values.config.dbPort }}/{{ .Values.config.dbName }}{{- if .Values.config.dbSslMode }}?sslmode={{ .Values.config.dbSslMode }}{{- end }}"
   USAGECORE_JWK_SET_URI: {{ .Values.config.jwkSetUri | quote }}
   USAGECORE_KAFKA_BOOTSTRAP_SERVERS: {{ .Values.config.kafkaBootstrapServers | quote }}
   USAGECORE_OTLP_ENABLED: {{ .Values.config.otlpEnabled | quote }}

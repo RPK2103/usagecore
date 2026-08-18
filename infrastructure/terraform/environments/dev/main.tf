@@ -117,3 +117,17 @@ module "iam" {
   cluster_arn  = module.eks.cluster_arn
   tags         = local.tags
 }
+
+module "github_oidc" {
+  source = "../../modules/github-oidc"
+
+  name_prefix          = local.name_prefix
+  github_repository    = var.github_repository
+  github_environment   = var.github_environment
+  create_oidc_provider = var.create_github_oidc_provider
+  eks_cluster_name     = module.eks.cluster_name
+  kubernetes_namespace = var.kubernetes_namespace
+  ecr_repository_arns  = values(module.ecr.repository_arns)
+  state_bucket_arn     = var.terraform_state_bucket_arn
+  tags                 = local.tags
+}

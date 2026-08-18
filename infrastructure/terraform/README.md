@@ -22,6 +22,8 @@ infrastructure/terraform/
     ecr/                # three workload repositories
     iam/                # AWS Load Balancer Controller Pod Identity
     secrets/            # Secrets Manager containers (values not written by Terraform)
+    github-oidc/        # GitHub Actions OIDC provider + CI/CD IAM roles
+  bootstrap/            # S3 remote-state bucket (separate stack)
 ```
 
 Additional environments can be added later by copying `environments/dev` and changing variables. Phase 13 does not ship empty qa/staging/prod copies.
@@ -107,7 +109,7 @@ Terraform does not install the application, run Flyway, or create Kafka topics.
 ## What this does not do
 
 - Live `terraform apply`
-- GitHub Actions / CI
+- GitHub Actions / CI — see [docs/cicd](../../docs/cicd/README.md)
 - Helm provider app install
 - Route 53 hosted zones
 - Seed tenants, contracts, or usage data

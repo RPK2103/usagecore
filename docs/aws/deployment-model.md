@@ -6,18 +6,20 @@
 | --- | --- | --- |
 | Terraform | VPC, EKS, RDS, MSK, ECR, IAM, Secrets Manager resources, security groups | Kubernetes Deployments, Flyway, Kafka topics, business seed data |
 | Helm (Phase 12 chart + `values-aws.yaml`) | Deployments, Services, probes, PDBs, ConfigMap keys, Ingress annotations | AWS account resources |
-| Phase 14 (deferred) | Image build/push, `terraform apply` automation, Helm release, secret sync | Product domain changes |
+| Phase 14 (GitHub Actions + `scripts/ci`) | Image build/push, `terraform apply` gates, Helm release, secret sync | Product domain changes |
 
 Terraform does **not** use the Helm provider to install UsageCore. Infrastructure lifecycle and application release lifecycle stay separable.
 
-## Intended rollout (not automated here)
+## Intended rollout
+
+See [CI/CD deployment](../cicd/deployment.md). Phase 14 implements the gated workflow; it does not execute live AWS apply.
 
 ```text
 1. terraform apply (authorized spend) → VPC, EKS, RDS, MSK, ECR, secrets containers
 2. Build and push images tagged with git SHA (not latest)
 3. Install AWS Load Balancer Controller using the Terraform Pod Identity role
 4. Populate Secrets Manager values (RDS managed secret already exists; MSK SCRAM value is operator-written)
-5. Sync secrets into Kubernetes Secret `usagecore-secrets` (External Secrets / CSI / deploy-time injection — one mechanism, Phase 14)
+5. Sync secrets into Kubernetes Secret `usagecore-secrets` (deploy-job retrieval; see Phase 14)
 6. helm upgrade -f values-aws.yaml with Terraform outputs substituted
 7. Control Plane becomes Ready (Flyway runs)
 8. Entitlement Runtime and Usage Pipeline start
@@ -80,7 +82,7 @@ Existing env vars, not new names:
 | `USAGECORE_JWK_SET_URI` | External issuer JWKS URL |
 | `USAGECORE_OTLP_ENABLED` | Optional; default false in `values-aws.yaml` |
 
-Spring Kafka SASL/SCRAM client settings are **not** in the Java codebase today (local Kafka is plaintext). Enabling MSK SCRAM at runtime requires deploy-time Kafka client configuration. That integration is documented as a Phase 14 application-config boundary, not silently implemented as a domain rewrite.
+Spring Kafka SASL/SCRAM is mapped in Usage Pipeline `application-aws.yml` (`SASL_SSL` + `SCRAM-SHA-512`). JAAS is injected from `usagecore-secrets`. Local Compose/kind remain PLAINTEXT.
 
 ## Storage
 

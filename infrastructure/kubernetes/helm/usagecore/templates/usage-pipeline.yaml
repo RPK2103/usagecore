@@ -6,6 +6,10 @@ metadata:
   namespace: {{ .Values.namespace }}
   labels:
     {{- include "usagecore.appLabels" (dict "name" "usage-pipeline" "component" "application" "Values" .Values "Chart" .Chart "Release" .Release) | nindent 4 }}
+  {{- if or .Values.release.gitSha .Values.release.imageTag .Values.release.imageDigest }}
+  annotations:
+    {{- include "usagecore.releaseAnnotations" . | nindent 4 }}
+  {{- end }}
 spec:
   replicas: {{ .Values.usagePipeline.replicas }}
   selector:
@@ -24,6 +28,10 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/component: application
         app.kubernetes.io/part-of: usagecore
+      {{- if or .Values.release.gitSha .Values.release.imageTag .Values.release.imageDigest }}
+      annotations:
+        {{- include "usagecore.releaseAnnotations" . | nindent 8 }}
+      {{- end }}
     spec:
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
@@ -58,6 +66,7 @@ spec:
                 configMapKeyRef:
                   name: usagecore-config
                   key: USAGECORE_KAFKA_BOOTSTRAP_SERVERS
+            {{- include "usagecore.kafkaSaslEnv" . | nindent 12 }}
           {{- include "usagecore.probes" (dict "port" .Values.usagePipeline.port "Values" .Values) | nindent 10 }}
           resources:
             {{- toYaml .Values.usagePipeline.resources | nindent 12 }}

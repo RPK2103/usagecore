@@ -38,6 +38,8 @@ postgres:
 
 kafka:
   enabled: true
+  # When true (AWS overlay), a Helm hook creates topics on external MSK using SASL.
+  saslTopicsJob: false
   clusterId: MkU3OEVBNTcwNTJENDM2Qk
 
 keycloak:
@@ -52,7 +54,16 @@ config:
   dbHost: postgres
   dbPort: "5432"
   dbName: usagecore
+  dbSslMode: ""
   otlpEnabled: "false"
+  kafka:
+    sasl:
+      enabled: false
+
+release:
+  gitSha: ""
+  imageTag: ""
+  imageDigest: ""
 
 secrets:
   # Local chart creates placeholder credentials. AWS overlay disables this;
