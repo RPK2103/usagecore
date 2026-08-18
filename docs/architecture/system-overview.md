@@ -81,3 +81,7 @@ Metrics, traces, structured logs, and operational dashboards describe existing b
 ## Resilience (Phase 10)
 
 Selected dependency-failure windows are proven with Testcontainers pause/unpause and test-only seams. HTTP 202 remains durable PostgreSQL acceptance. Kafka ACK-before-outbox-PUBLISHED and consumer DB-commit-before-offset may duplicate transport; inbox/outbox keep a single business effect. See [ADR-019](../adr/ADR-019-resilience-and-failure-recovery.md) and the [failure matrix](../resilience/failure-matrix.md). Not production HA, not disaster recovery, not exactly-once.
+
+## Performance laboratory (Phase 11)
+
+A Gatling module under `performance/` measures entitlement check, durable ingest HTTP 202, and strict consume as **separate** workloads on a local Compose stack. Warm-up is excluded from headlines. Local percentiles are not production capacity. See [ADR-020](../adr/ADR-020-performance-engineering-and-benchmark-methodology.md) and [performance lab](../performance/README.md).

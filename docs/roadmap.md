@@ -125,19 +125,27 @@ Milestones are sequential. Each builds only the workloads it needs.
 - No Alertmanager notification routing, no automatic remediation
 - [ADR-018](adr/ADR-018-operational-dashboards-and-alerting.md)
 
-## Phase 10 — Resilience engineering and failure recovery (current)
+## Phase 10 — Resilience engineering and failure recovery
 
 - Deterministic Testcontainers pause/unpause for Kafka and PostgreSQL (no Resilience4j/Toxiproxy)
-- Flagship proofs: Kafka outage + backlog drain, ACK-before-PUBLISHED duplicate window, consumer commit/offset gap, PostgreSQL unavailability, poison/DLQ isolation, delayed delivery across finalization
+- Flagship proofs: Kafka outage + backlog drain, ACK-before-PUBLISHED duplicate window, consumer commit/offset gap, PostgreSQL unavailability, poison/DLQ isolation, delayed delivery across CommercialPeriod finalization
 - HTTP 202 remains durable PostgreSQL acceptance; Kafka is asynchronous delivery
 - [ADR-019](adr/ADR-019-resilience-and-failure-recovery.md), [failure matrix](resilience/failure-matrix.md)
+
+## Phase 11 — Performance engineering (current)
+
+- Repeatable local Gatling laboratory (`performance/`): entitlement check, `/usage/events` HTTP 202, `/usage/consume`, ingest burst/drain
+- Profiles: warm-up (excluded from headlines), baseline, ramp, sustained, burst, quota contention
+- Cached Keycloak token; JFR + EXPLAIN ANALYZE + existing Micrometer/Grafana; no CI latency gates
+- Optimizations only with before/after evidence; no speculative indexes required
+- [ADR-020](adr/ADR-020-performance-engineering-and-benchmark-methodology.md), [performance lab](performance/README.md)
 
 ## Phase 7B — Tenancy hardening (optional RLS revisit)
 
 - Revisit PostgreSQL RLS with proven session handling ([ADR-006](adr/ADR-006-postgresql-rls.md))
 - Expand audit of commercial-state access as needed
 
-## Phase 11+ — Operability drills
+## Phase 12+ — Operability drills
 
 - Deploy packaging, load/failure drills
 - No “production-ready” claim without recorded evidence

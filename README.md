@@ -30,6 +30,12 @@ Shared libraries:
 - [`libraries/database-migrations`](libraries/database-migrations/README.md) — Flyway SQL (Control Plane owns production migrations)
 - [`libraries/event-contracts`](libraries/event-contracts) — versioned Kafka transport envelopes only
 
+## Phase 11 status
+
+Phase 10 (resilience failure-recovery) is complete. **Phase 11** adds a **local performance laboratory** (Gatling in `performance/`, seed/verify/EXPLAIN/JFR docs). Results are machine-specific and are **not** production capacity, production SLOs, or hardware-independent TPS claims.
+
+See [ADR-020](docs/adr/ADR-020-performance-engineering-and-benchmark-methodology.md) and [docs/performance/](docs/performance/README.md).
+
 ## Phase 10 status
 
 Phase 9B (Grafana + Prometheus alerts + runbooks) is complete. **Phase 10** proves selected failure windows: Kafka publication outage/recovery, outbox ACK-before-PUBLISHED duplicates, consumer commit/offset gap, PostgreSQL unavailability, poison/DLQ isolation, and delayed delivery across CommercialPeriod finalization.
@@ -157,7 +163,7 @@ curl -s -X POST "http://localhost:8081/realms/usagecore/protocol/openid-connect/
 | Entitlement Runtime | `http://localhost:8082/actuator/health` | `http://localhost:8082/actuator/prometheus` |
 | Usage Pipeline | `http://localhost:8083/actuator/health` | `http://localhost:8083/actuator/prometheus` |
 
-Usage Pipeline readiness depends on PostgreSQL, not Kafka. Observability: [ADR-017](docs/adr/ADR-017-observability-architecture.md), [ADR-018](docs/adr/ADR-018-operational-dashboards-and-alerting.md), [metrics](docs/observability/metrics.md), [alerts](docs/observability/alerts.md), [local setup](docs/observability/local-observability.md), [runbooks](docs/observability/runbooks/). Failure recovery: [ADR-019](docs/adr/ADR-019-resilience-and-failure-recovery.md), [failure matrix](docs/resilience/failure-matrix.md).
+Usage Pipeline readiness depends on PostgreSQL, not Kafka. Observability: [ADR-017](docs/adr/ADR-017-observability-architecture.md), [ADR-018](docs/adr/ADR-018-operational-dashboards-and-alerting.md), [metrics](docs/observability/metrics.md), [alerts](docs/observability/alerts.md), [local setup](docs/observability/local-observability.md), [runbooks](docs/observability/runbooks/). Failure recovery: [ADR-019](docs/adr/ADR-019-resilience-and-failure-recovery.md), [failure matrix](docs/resilience/failure-matrix.md). Performance lab: [ADR-020](docs/adr/ADR-020-performance-engineering-and-benchmark-methodology.md), [docs/performance](docs/performance/README.md).
 
 ## Authenticated local demos (curl)
 
@@ -226,6 +232,8 @@ Requires Docker available for Testcontainers PostgreSQL and Kafka tests.
 docker compose -f infrastructure/docker/docker-compose.yml config
 ```
 
+Gatling load tests are **not** part of `clean verify`. Explicit lab commands: [docs/performance](docs/performance/README.md).
+
 ## Non-goals (current)
 
 - Pricing, invoices, credits, billing exports
@@ -240,3 +248,4 @@ docker compose -f infrastructure/docker/docker-compose.yml config
 - Production-ready / exactly-once / production SLO / production HA claims
 - Claims that Phase 7 finalization proves reconciled aggregate correctness
 - Claims that Phase 10 proves disaster recovery or zero message loss under arbitrary infrastructure destruction
+- Claims that local Gatling numbers are production capacity or hardware-independent TPS
