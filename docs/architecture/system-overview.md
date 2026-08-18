@@ -85,3 +85,35 @@ Selected dependency-failure windows are proven with Testcontainers pause/unpause
 ## Performance laboratory (Phase 11)
 
 A Gatling module under `performance/` measures entitlement check, durable ingest HTTP 202, and strict consume as **separate** workloads on a local Compose stack. Warm-up is excluded from headlines. Local percentiles are not production capacity. See [ADR-020](../adr/ADR-020-performance-engineering-and-benchmark-methodology.md) and [performance lab](../performance/README.md).
+
+## Local Kubernetes deployment (Phase 12)
+
+Phase 12 validates the same three workloads as containers on a **kind** cluster ([ADR-021](../adr/ADR-021-kubernetes-packaging-and-operability.md)). This is operability evidence, not production topology.
+
+```
+Client (port-forward / local)
+        │
+        ▼
+┌───────────────────────────────────────────────────┐
+│  namespace: usagecore                             │
+│  ┌─────────────────┐ ┌──────────────────────────┐ │
+│  │ control-plane   │ │ entitlement-runtime (×2) │ │
+│  │ (Flyway owner)  │ │ usage-pipeline (×2)      │ │
+│  └────────┬────────┘ └────────────┬─────────────┘ │
+│           │                       │               │
+│           └───────────┬───────────┘               │
+│                       ▼                           │
+│              PostgreSQL (PVC)                     │
+│                       │                           │
+│         usage-pipeline outbox ──► Kafka           │
+│                       │                           │
+│              Keycloak (JWKS)                      │
+└───────────────────────────────────────────────────┘
+```
+
+- Docker Compose remains the developer dependency stack for host-run JVMs.
+- Kubernetes adds container orchestration drills: probe semantics, replica scaling, pod restart, rolling update.
+- External Compose Prometheus/Grafana may scrape port-forwarded `/actuator/prometheus`.
+- Not proven: EKS, managed RDS/MSK, multi-AZ, backup/restore, production secret management.
+
+See [kubernetes docs](../kubernetes/README.md) and [failure matrix](../kubernetes/failure-matrix.md).

@@ -1,0 +1,31 @@
+# Multi-stage production-style container for UsageCore Java workloads.
+# Build from repository root:
+#   docker build -f infrastructure/docker/Dockerfile.workload \
+#     --build-arg WORKLOAD=control-plane --build-arg SERVER_PORT=8080 \
+#     -t usagecore/control-plane:phase12 .
+#
+# WORKLOAD: control-plane | entitlement-runtime | usage-pipeline
+
+# syntax=docker/dockerfile:1
+
+ARG WORKLOAD=control-plane
+ARG SERVER_PORT=8080
+
+FROM eclipse-temurin:21-jdk-jammy AS builder
+ARG WORKLOAD
+WORKDIR /build
+COPY . .
+RUN chmod +x mvnw && ./mvnw -pl "applications/${WORKLOAD}" -am -DskipTests package -q
+
+FROM eclipse-temurin:21-jre-jammy AS runtime
+ARG WORKLOAD
+ARG SERVER_PORT
+RUN groupadd -r usagecore && useradd -r -g usagecore -u 10001 usagecore
+WORKDIR /app
+COPY --from=builder /build/applications/${WORKLOAD}/target/*.jar /app/app.jar
+RUN chown -R usagecore:usagecore /app
+USER 10001
+EXPOSE ${SERVER_PORT}
+ENV SERVER_PORT=${SERVER_PORT} \
+    JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError"
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

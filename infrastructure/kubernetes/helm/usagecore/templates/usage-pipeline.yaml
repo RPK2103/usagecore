@@ -1,0 +1,81 @@
+{{- if .Values.usagePipeline.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: usagecore-usage-pipeline
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "usagecore.appLabels" (dict "name" "usage-pipeline" "component" "application" "Values" .Values "Chart" .Chart "Release" .Release) | nindent 4 }}
+spec:
+  replicas: {{ .Values.usagePipeline.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: usage-pipeline
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: {{ .Values.rollingUpdate.maxUnavailable }}
+      maxSurge: {{ .Values.rollingUpdate.maxSurge }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: usage-pipeline
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: application
+        app.kubernetes.io/part-of: usagecore
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- include "usagecore.podSecurityContext" . | nindent 8 }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: usage-pipeline
+                    app.kubernetes.io/instance: {{ .Release.Name }}
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: usage-pipeline
+          image: "{{ .Values.images.usagePipeline.repository }}:{{ .Values.images.usagePipeline.tag }}"
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          securityContext:
+            {{- include "usagecore.containerSecurityContext" . | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.usagePipeline.port }}
+          env:
+            - name: SERVER_PORT
+              value: {{ .Values.usagePipeline.port | quote }}
+            {{- include "usagecore.dbEnv" . | nindent 12 }}
+            {{- include "usagecore.commonEnv" . | nindent 12 }}
+            - name: USAGECORE_KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: usagecore-config
+                  key: USAGECORE_KAFKA_BOOTSTRAP_SERVERS
+          {{- include "usagecore.probes" (dict "port" .Values.usagePipeline.port "Values" .Values) | nindent 10 }}
+          resources:
+            {{- toYaml .Values.usagePipeline.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: usagecore-usage-pipeline
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "usagecore.appLabels" (dict "name" "usage-pipeline" "component" "application" "Values" .Values "Chart" .Chart "Release" .Release) | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: usage-pipeline
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: {{ .Values.usagePipeline.port }}
+      targetPort: http
+{{- end }}

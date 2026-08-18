@@ -36,6 +36,20 @@ Phase 10 (resilience failure-recovery) is complete. **Phase 11** adds a **local 
 
 See [ADR-020](docs/adr/ADR-020-performance-engineering-and-benchmark-methodology.md) and [docs/performance/](docs/performance/README.md).
 
+## Phase 12 status
+
+**Phase 12** packages the three workloads for **local Kubernetes (kind + Helm)**: container images, probes, ConfigMap/Secret config, multi-replica usage-pipeline validation, and operability failure drills. This is **not** AWS/EKS, production HA, or disaster recovery.
+
+```powershell
+.\infrastructure\kubernetes\scripts\create-cluster.ps1
+.\infrastructure\kubernetes\scripts\build-images.ps1 -Tag phase12
+.\infrastructure\kubernetes\scripts\load-images.ps1 -Tag phase12
+.\infrastructure\kubernetes\scripts\deploy.ps1 -Tag phase12
+.\infrastructure\kubernetes\scripts\smoke.ps1
+```
+
+See [ADR-021](docs/adr/ADR-021-kubernetes-packaging-and-operability.md) and [docs/kubernetes/](docs/kubernetes/README.md).
+
 ## Phase 10 status
 
 Phase 9B (Grafana + Prometheus alerts + runbooks) is complete. **Phase 10** proves selected failure windows: Kafka publication outage/recovery, outbox ACK-before-PUBLISHED duplicates, consumer commit/offset gap, PostgreSQL unavailability, poison/DLQ isolation, and delayed delivery across CommercialPeriod finalization.
@@ -240,7 +254,7 @@ Gatling load tests are **not** part of `clean verify`. Explicit lab commands: [d
 - Compensating/undo UsageAdjustment, automatic exception application, quota repair, Kafka historical replay
 - Automated commercial-period schedulers / tenant-specific timezones
 - Kafka Streams / Schema Registry / Avro
-- Cognito / AWS / Kubernetes
+- Cognito / AWS production deployment
 - Redis, MongoDB, Elasticsearch, GraphQL, service mesh
 - AI / LLM components
 - Frontend UI

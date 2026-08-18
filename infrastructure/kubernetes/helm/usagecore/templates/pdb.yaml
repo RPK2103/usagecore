@@ -1,0 +1,31 @@
+{{- if and .Values.entitlementRuntime.enabled .Values.entitlementRuntime.pdb.enabled (gt (int .Values.entitlementRuntime.replicas) 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: usagecore-entitlement-runtime
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "usagecore.appLabels" (dict "name" "entitlement-runtime" "component" "application" "Values" .Values "Chart" .Chart "Release" .Release) | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.entitlementRuntime.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: entitlement-runtime
+      app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+---
+{{- if and .Values.usagePipeline.enabled .Values.usagePipeline.pdb.enabled (gt (int .Values.usagePipeline.replicas) 1) }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: usagecore-usage-pipeline
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "usagecore.appLabels" (dict "name" "usage-pipeline" "component" "application" "Values" .Values "Chart" .Chart "Release" .Release) | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.usagePipeline.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: usage-pipeline
+      app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}

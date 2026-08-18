@@ -26,6 +26,8 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
 
 management:
   endpoints:
@@ -71,6 +73,7 @@ management:
 
 server:
   port: ${SERVER_PORT:8080}
+  shutdown: graceful
 
 logging:
   pattern:

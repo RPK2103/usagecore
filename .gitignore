@@ -51,3 +51,7 @@ replay_pid*
 bin/
 out/
 *.jfr
+
+# Kubernetes / local cluster artifacts
+kind-export/
+*.kubeconfig.local

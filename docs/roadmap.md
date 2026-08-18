@@ -132,7 +132,7 @@ Milestones are sequential. Each builds only the workloads it needs.
 - HTTP 202 remains durable PostgreSQL acceptance; Kafka is asynchronous delivery
 - [ADR-019](adr/ADR-019-resilience-and-failure-recovery.md), [failure matrix](resilience/failure-matrix.md)
 
-## Phase 11 — Performance engineering (current)
+## Phase 11 — Performance engineering
 
 - Repeatable local Gatling laboratory (`performance/`): entitlement check, `/usage/events` HTTP 202, `/usage/consume`, ingest burst/drain
 - Profiles: warm-up (excluded from headlines), baseline, ramp, sustained, burst, quota contention
@@ -140,16 +140,27 @@ Milestones are sequential. Each builds only the workloads it needs.
 - Optimizations only with before/after evidence; no speculative indexes required
 - [ADR-020](adr/ADR-020-performance-engineering-and-benchmark-methodology.md), [performance lab](performance/README.md)
 
+## Phase 12 — Kubernetes packaging and operability (current)
+
+- Multi-stage container images (Java 21, non-root) for all three workloads
+- kind cluster + Helm chart (`infrastructure/kubernetes/`)
+- In-cluster local PostgreSQL (PVC), Kafka, Keycloak; apps externalized via ConfigMap/Secret
+- Probes: liveness/startup without Kafka; readiness PostgreSQL-only on Usage Pipeline
+- Replicas: control-plane 1, entitlement-runtime 2, usage-pipeline 2+
+- Live drills: Kafka/PostgreSQL outage, pending-outbox pod restart, scale, rollout
+- [ADR-021](adr/ADR-021-kubernetes-packaging-and-operability.md), [kubernetes docs](kubernetes/README.md)
+
 ## Phase 7B — Tenancy hardening (optional RLS revisit)
 
 - Revisit PostgreSQL RLS with proven session handling ([ADR-006](adr/ADR-006-postgresql-rls.md))
 - Expand audit of commercial-state access as needed
 
-## Phase 12+ — Operability drills
+## Phase 12+ — Cloud and delivery
 
-- Deploy packaging, load/failure drills
+- AWS/Terraform (EKS, RDS, MSK) when operability needs cloud topology
+- CI/CD deployment automation
 - No “production-ready” claim without recorded evidence
 
 ## Explicit deferrals
 
-K8s/AWS/Terraform until operability needs them · Redis/Mongo/ES/GraphQL/mesh without measured need · Cognito until production IdP cutover · Schema Registry/Avro until demonstrated · AI/LLM · Frontend
+AWS/Terraform/CI/CD beyond Phase 12 local K8s · Redis/Mongo/ES/GraphQL/mesh without measured need · Cognito until production IdP cutover · Schema Registry/Avro until demonstrated · AI/LLM · Frontend

@@ -1,0 +1,113 @@
+# Default chart values. Override with values-local.yaml for the local kind cluster.
+namespace: usagecore
+
+global:
+  imagePullPolicy: IfNotPresent
+  labels:
+    app.kubernetes.io/part-of: usagecore
+    app.kubernetes.io/managed-by: helm
+
+images:
+  controlPlane:
+    repository: usagecore/control-plane
+    tag: phase12
+  entitlementRuntime:
+    repository: usagecore/entitlement-runtime
+    tag: phase12
+  usagePipeline:
+    repository: usagecore/usage-pipeline
+    tag: phase12
+  postgres:
+    repository: postgres
+    tag: "16-alpine"
+  kafka:
+    repository: apache/kafka
+    tag: "3.8.1"
+  keycloak:
+    repository: quay.io/keycloak/keycloak
+    tag: "26.0"
+
+postgres:
+  enabled: true
+  storage: 2Gi
+  database: usagecore
+  username: usagecore
+  # Local placeholder only — not production secret management.
+  password: usagecore
+
+kafka:
+  enabled: true
+  clusterId: MkU3OEVBNTcwNTJENDM2Qk
+
+keycloak:
+  enabled: true
+  adminUsername: admin
+  adminPassword: admin
+  httpPort: 8081
+
+config:
+  jwkSetUri: http://keycloak:8081/realms/usagecore/protocol/openid-connect/certs
+  kafkaBootstrapServers: kafka:9092
+  dbHost: postgres
+  dbPort: "5432"
+  dbName: usagecore
+  otlpEnabled: "false"
+
+controlPlane:
+  enabled: true
+  replicas: 1
+  port: 8080
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 768Mi
+
+entitlementRuntime:
+  enabled: true
+  replicas: 2
+  port: 8082
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 768Mi
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+usagePipeline:
+  enabled: true
+  replicas: 2
+  port: 8083
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 768Mi
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+probes:
+  startup:
+    periodSeconds: 10
+    failureThreshold: 30
+  liveness:
+    periodSeconds: 10
+    failureThreshold: 3
+  readiness:
+    periodSeconds: 5
+    failureThreshold: 3
+
+terminationGracePeriodSeconds: 60
+
+rollingUpdate:
+  maxUnavailable: 0
+  maxSurge: 1
