@@ -26,6 +26,7 @@ Default `permissions: contents: read`. Extra job permissions:
 | Job | Extra | Why |
 | --- | --- | --- |
 | Security / CodeQL | `security-events: write`, `actions: read` | Upload CodeQL SARIF |
+| Security / Dependency Review | `pull-requests: read` | Compare API for the PR head/base |
 | Container / Publish ECR | `id-token: write`, `attestations: write` | AWS OIDC + GitHub provenance |
 | Terraform / Plan | `id-token: write` | AWS OIDC |
 | Deploy jobs | `id-token: write` | AWS OIDC |
@@ -43,7 +44,7 @@ Third-party actions are pinned to full commit SHAs with version comments. See [`
 | Tool | Scope | Gate |
 | --- | --- | --- |
 | CodeQL Java | Source | Blocking when the GitHub plan allows CodeQL |
-| Dependency review | PR dependency diffs | Fail on high; requires Dependency graph. May be unavailable on some private plans |
+| Dependency review | PR dependency diffs | Fail on high when GitHub Dependency graph compare succeeds. If the compare API returns 403/404 (graph not enabled / unsupported for the token), the job records a notice and does not fail — that path is not a vulnerability clearance |
 | Trivy config | Terraform | Fail on CRITICAL/HIGH |
 | Trivy image | Three workload images | Fail on CRITICAL |
 
@@ -58,6 +59,8 @@ OWASP Dependency-Check is not used (NVD token/false-positive cost). No silent su
 Do not claim zero vulnerabilities.
 
 Accepted IaC findings (example topology, not silent): see repository `.trivyignore`. Identifiers: AVD-AWS-0132, AVD-AWS-0039, AVD-AWS-0040, AVD-AWS-0041, AVD-AWS-0104, AVD-AWS-0164. Each line in that file names reason and documentation pointer. MSK at-rest encryption is declared in Terraform (`alias/aws/kafka`) rather than ignored.
+
+Enable Dependency graph under repository Settings → Code security so PR dependency review can run. Until that compare API returns 200 or 409, the workflow skips the action after a notice rather than failing every PR. Real high-severity findings still fail when the API is available.
 
 GitHub-hosted execution of these scanners is recorded in [evidence.md](evidence.md). A failed run is evidence too — do not imply the Security workflow is green unless it is.
 
