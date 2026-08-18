@@ -118,19 +118,26 @@ Milestones are sequential. Each builds only the workloads it needs.
 - Local Prometheus + OTel Collector in Docker Compose
 - [ADR-017](adr/ADR-017-observability-architecture.md)
 
-## Phase 9B — Operational dashboards and alerting (current)
+## Phase 9B — Operational dashboards and alerting
 
 - Grafana in Compose with provisioned Prometheus datasource and three dashboards
 - Prometheus recording + alert rules (demo thresholds); runbooks; SLO-style indicators (not production SLOs)
 - No Alertmanager notification routing, no automatic remediation
 - [ADR-018](adr/ADR-018-operational-dashboards-and-alerting.md)
 
+## Phase 10 — Resilience engineering and failure recovery (current)
+
+- Deterministic Testcontainers pause/unpause for Kafka and PostgreSQL (no Resilience4j/Toxiproxy)
+- Flagship proofs: Kafka outage + backlog drain, ACK-before-PUBLISHED duplicate window, consumer commit/offset gap, PostgreSQL unavailability, poison/DLQ isolation, delayed delivery across finalization
+- HTTP 202 remains durable PostgreSQL acceptance; Kafka is asynchronous delivery
+- [ADR-019](adr/ADR-019-resilience-and-failure-recovery.md), [failure matrix](resilience/failure-matrix.md)
+
 ## Phase 7B — Tenancy hardening (optional RLS revisit)
 
 - Revisit PostgreSQL RLS with proven session handling ([ADR-006](adr/ADR-006-postgresql-rls.md))
 - Expand audit of commercial-state access as needed
 
-## Phase 10+ — Operability drills
+## Phase 11+ — Operability drills
 
 - Deploy packaging, load/failure drills
 - No “production-ready” claim without recorded evidence

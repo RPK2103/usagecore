@@ -30,7 +30,15 @@ Shared libraries:
 - [`libraries/database-migrations`](libraries/database-migrations/README.md) — Flyway SQL (Control Plane owns production migrations)
 - [`libraries/event-contracts`](libraries/event-contracts) — versioned Kafka transport envelopes only
 
-## Phase 9B status
+## Phase 10 status
+
+Phase 9B (Grafana + Prometheus alerts + runbooks) is complete. **Phase 10** proves selected failure windows: Kafka publication outage/recovery, outbox ACK-before-PUBLISHED duplicates, consumer commit/offset gap, PostgreSQL unavailability, poison/DLQ isolation, and delayed delivery across CommercialPeriod finalization.
+
+UsageCore is designed for **at-least-once** delivery and duplicate-safe recovery across those windows. It does **not** claim exactly-once transport, zero data loss, automatic disaster recovery, or production HA.
+
+See [ADR-019](docs/adr/ADR-019-resilience-and-failure-recovery.md) and the [failure matrix](docs/resilience/failure-matrix.md).
+
+## Phase 9B observability (retained)
 
 Phase 8B (explicit UsageAdjustment) and **Phase 9A** (metrics/traces/logs) are complete. **Phase 9B** adds a local Grafana + Prometheus alerting loop (observe → visualize → detect → investigate). Dashboards are not commercial correctness authority. Alert thresholds are demo/engineering defaults, not production SLOs. There is no automatic remediation.
 
@@ -40,7 +48,7 @@ Three independently deployable applications:
 | --- | --- |
 | Control Plane | Catalog / commercial configuration (including MeterDefinition → Feature) + **CommercialPeriod** lifecycle; production Flyway owner; blocks FINALIZED while reconciliation is RUNNING |
 | Entitlement Runtime | Authenticated **read-only** entitlement checks against activated snapshots ([ADR-007](docs/adr/ADR-007-entitlement-runtime-read-architecture.md)) |
-| Usage Pipeline | Durable ingestion + outbox + idempotent consumer ledger/aggregates + synchronous quota consume + commercial-period enforcement + reconciliation rebuild/compare/report + explicit UsageAdjustment + observability ([ADR-008](docs/adr/ADR-008-kafka-usage-topology.md)–[ADR-018](docs/adr/ADR-018-operational-dashboards-and-alerting.md)) |
+| Usage Pipeline | Durable ingestion + outbox + idempotent consumer ledger/aggregates + synchronous quota consume + commercial-period enforcement + reconciliation rebuild/compare/report + explicit UsageAdjustment + observability + Phase 10 failure-recovery evidence ([ADR-008](docs/adr/ADR-008-kafka-usage-topology.md)–[ADR-019](docs/adr/ADR-019-resilience-and-failure-recovery.md)) |
 
 Usage Pipeline Phase 8B:
 
@@ -149,7 +157,7 @@ curl -s -X POST "http://localhost:8081/realms/usagecore/protocol/openid-connect/
 | Entitlement Runtime | `http://localhost:8082/actuator/health` | `http://localhost:8082/actuator/prometheus` |
 | Usage Pipeline | `http://localhost:8083/actuator/health` | `http://localhost:8083/actuator/prometheus` |
 
-Usage Pipeline readiness depends on PostgreSQL, not Kafka. Observability: [ADR-017](docs/adr/ADR-017-observability-architecture.md), [ADR-018](docs/adr/ADR-018-operational-dashboards-and-alerting.md), [metrics](docs/observability/metrics.md), [alerts](docs/observability/alerts.md), [local setup](docs/observability/local-observability.md), [runbooks](docs/observability/runbooks/).
+Usage Pipeline readiness depends on PostgreSQL, not Kafka. Observability: [ADR-017](docs/adr/ADR-017-observability-architecture.md), [ADR-018](docs/adr/ADR-018-operational-dashboards-and-alerting.md), [metrics](docs/observability/metrics.md), [alerts](docs/observability/alerts.md), [local setup](docs/observability/local-observability.md), [runbooks](docs/observability/runbooks/). Failure recovery: [ADR-019](docs/adr/ADR-019-resilience-and-failure-recovery.md), [failure matrix](docs/resilience/failure-matrix.md).
 
 ## Authenticated local demos (curl)
 
@@ -229,5 +237,6 @@ docker compose -f infrastructure/docker/docker-compose.yml config
 - AI / LLM components
 - Frontend UI
 - Production notification routing / PagerDuty / automatic incident remediation
-- Production-ready / exactly-once / production SLO claims
+- Production-ready / exactly-once / production SLO / production HA claims
 - Claims that Phase 7 finalization proves reconciled aggregate correctness
+- Claims that Phase 10 proves disaster recovery or zero message loss under arbitrary infrastructure destruction

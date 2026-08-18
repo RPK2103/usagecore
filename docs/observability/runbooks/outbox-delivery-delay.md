@@ -61,4 +61,4 @@ Quotas, window aggregates, and billing-derived state do not change until the con
 
 The existing publisher retries `PENDING` rows (`FOR UPDATE SKIP LOCKED`). Restore Kafka and allow the publisher to catch up.
 
-Phase 10 may add failure drills and operational replay tooling. There is **no** automatic remediation in Phase 9B.
+Phase 10 verified (Testcontainers Kafka pause): HTTP 202 + PENDING outbox while the broker is unavailable; after unpause the stored envelope is published with the same `eventId` and the consumer applies once. Do **not** rewrite outbox status. There is **no** automatic remediation.

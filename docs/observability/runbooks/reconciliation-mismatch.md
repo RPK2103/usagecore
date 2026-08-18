@@ -51,4 +51,4 @@ Quarantined lifecycle usage can contribute to expected divergence vs “live” 
 
 ## Recovery / escalation
 
-Authorized UsageAdjustment is the supported correction path for quarantined usage. Broader rebuild/repair automation is not in Phase 9B. Phase 10 covers failure experiments, not silent commercial repair.
+Authorized UsageAdjustment is the supported correction path for quarantined usage. Broader rebuild/repair automation is not provided. Phase 10 confirmed delayed delivery after FINALIZED quarantines rather than mutating finalized aggregates; stale `RUNNING` reconciliation after a process crash remains a documented limitation (no lease/reaper).

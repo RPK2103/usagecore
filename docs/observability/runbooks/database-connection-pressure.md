@@ -45,4 +45,4 @@ This is **not** the same as Prometheus scrape failure (`up`) or Kafka delivery d
 
 ## Recovery / escalation
 
-Reduce load, fix the slow query, or restore PostgreSQL. Phase 10 may include connection-exhaustion drills. No automatic pool reset or query killer is provided.
+Reduce load, fix the slow query, or restore PostgreSQL. Phase 10 verified (container pause, not volume destroy): Usage Pipeline ingest does not return HTTP 202 while PostgreSQL is unavailable; readiness is not UP; after unpause, ingest can resume without rewriting commercial tables. No automatic pool reset or query killer is provided.

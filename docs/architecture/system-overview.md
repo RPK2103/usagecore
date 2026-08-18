@@ -8,7 +8,7 @@ UsageCore is a multi-tenant entitlement and usage platform. PostgreSQL is the tr
 | --- | --- |
 | control-plane | Catalog and commercial configuration: Tenant, Product, Feature, Plan, MeterDefinition, Contract, ContractVersion activation, **CommercialPeriod** lifecycle; **production Flyway owner** |
 | entitlement-runtime | Authenticated entitlement checks against activated contract snapshots; decision evidence; no Control Plane compile-time dependency ([ADR-007](../adr/ADR-007-entitlement-runtime-read-architecture.md)) |
-| usage-pipeline | Durable usage ingestion, transactional outbox, idempotent consumer ledger + aggregates, synchronous contract-aware quota consume, **commercial-period enforcement**, **reconciliation rebuild/compare/report**, **explicit UsageAdjustment**; no Control Plane / Entitlement Runtime compile-time dependency ([ADR-008](../adr/ADR-008-kafka-usage-topology.md)–[ADR-016](../adr/ADR-016-explicit-usage-adjustments.md)) |
+| usage-pipeline | Durable usage ingestion, transactional outbox, idempotent consumer ledger + aggregates, synchronous contract-aware quota consume, **commercial-period enforcement**, **reconciliation rebuild/compare/report**, **explicit UsageAdjustment**, **failure-recovery evidence**; no Control Plane / Entitlement Runtime compile-time dependency ([ADR-008](../adr/ADR-008-kafka-usage-topology.md)–[ADR-019](../adr/ADR-019-resilience-and-failure-recovery.md)) |
 
 Build only workloads required by the active milestone. No frontend in this repo.
 
@@ -77,3 +77,7 @@ Metrics, traces, structured logs, and operational dashboards describe existing b
 - Usage Pipeline readiness depends on PostgreSQL; Kafka down is degraded async delivery, not HTTP-ingestion failure
 - Local Prometheus + Grafana + OTel Collector: [local observability](../observability/local-observability.md); metric catalogue: [metrics.md](../observability/metrics.md); alerts: [alerts.md](../observability/alerts.md)
 - Grafana dashboards and demo alert rules: [ADR-018](../adr/ADR-018-operational-dashboards-and-alerting.md). No automatic remediation.
+
+## Resilience (Phase 10)
+
+Selected dependency-failure windows are proven with Testcontainers pause/unpause and test-only seams. HTTP 202 remains durable PostgreSQL acceptance. Kafka ACK-before-outbox-PUBLISHED and consumer DB-commit-before-offset may duplicate transport; inbox/outbox keep a single business effect. See [ADR-019](../adr/ADR-019-resilience-and-failure-recovery.md) and the [failure matrix](../resilience/failure-matrix.md). Not production HA, not disaster recovery, not exactly-once.

@@ -5,11 +5,13 @@ import io.usagecore.entitlementruntime.domain.CommercialInvariantException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Clock;
 import java.time.Instant;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.transaction.TransactionException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.slf4j.Logger;
@@ -80,6 +82,17 @@ public class GlobalExceptionHandler {
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 ApiErrorCodes.INTERNAL_ERROR,
                 "Commercial state invariant violation",
+                request
+        );
+    }
+
+    @ExceptionHandler({DataAccessException.class, TransactionException.class})
+    public ResponseEntity<ApiError> handleStorageUnavailable(Exception exception, HttpServletRequest request) {
+        log.error("Durable storage unavailable at {}", request.getRequestURI(), exception);
+        return build(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                ApiErrorCodes.SERVICE_UNAVAILABLE,
+                "Durable storage unavailable",
                 request
         );
     }

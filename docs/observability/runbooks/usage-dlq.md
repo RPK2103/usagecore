@@ -42,4 +42,4 @@ Canonical ledger / aggregates are **not** updated for that delivery. Durable ing
 
 ## Recovery / escalation
 
-Phase 10 / operational replay may extend DLQ handling. Today: diagnose with logs and canonical tables; do not automate replay. No Phase 9B remediation job exists.
+Phase 10 verified (same-partition A/B/C): a non-retryable poison record reaches the DLQ while following healthy records still apply once. There is **no** automatic DLQ replay. If the DLQ destination itself is unavailable, poison recovery is **not** guaranteed (no second DLQ).

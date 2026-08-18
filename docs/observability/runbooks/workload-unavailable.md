@@ -51,4 +51,4 @@ If only Prometheus cannot reach a healthy process (firewall, wrong port), busine
 
 ## Recovery / escalation
 
-Restart the workload using the normal local `spring-boot:run` / process manager after capturing logs. Restore PostgreSQL if readiness is failed. No automatic remediator exists.
+Restart the workload using the normal local `spring-boot:run` / process manager after capturing logs. Restore PostgreSQL if readiness is failed. Kafka down is **not** Usage Pipeline HTTP-ingestion outage (see outbox runbook). Full live JVM restart of PENDING outbox work is reasoned from durable `PENDING` rows but was **not** executed as a process-orchestration drill in Phase 10. No automatic remediator exists.

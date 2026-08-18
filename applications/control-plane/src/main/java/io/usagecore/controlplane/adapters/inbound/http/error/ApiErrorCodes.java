@@ -13,6 +13,7 @@ public final class ApiErrorCodes {
     public static final String COMMERCIAL_INTERVAL_CONFLICT = "COMMERCIAL_INTERVAL_CONFLICT";
     public static final String UNAUTHORIZED = "UNAUTHORIZED";
     public static final String FORBIDDEN = "FORBIDDEN";
+    public static final String SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE";
     public static final String INTERNAL_ERROR = "INTERNAL_ERROR";
 
     private ApiErrorCodes() {

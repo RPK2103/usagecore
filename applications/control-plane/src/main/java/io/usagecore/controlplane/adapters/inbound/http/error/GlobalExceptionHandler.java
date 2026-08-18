@@ -6,6 +6,7 @@ import io.usagecore.controlplane.application.security.AuthorizationDeniedExcepti
 import io.usagecore.controlplane.domain.catalogue.DomainInvariantException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.transaction.TransactionException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
@@ -128,6 +130,17 @@ public class GlobalExceptionHandler {
                 HttpStatus.CONFLICT,
                 ApiErrorCodes.DOMAIN_CONFLICT,
                 "Persistence conflict",
+                request
+        );
+    }
+
+    @ExceptionHandler({DataAccessException.class, TransactionException.class})
+    public ResponseEntity<ApiError> handleStorageUnavailable(Exception exception, HttpServletRequest request) {
+        log.error("Durable storage unavailable at {}", request.getRequestURI(), exception);
+        return build(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                ApiErrorCodes.SERVICE_UNAVAILABLE,
+                "Durable storage unavailable",
                 request
         );
     }

@@ -101,4 +101,44 @@ public final class CommercialPeriodFixtureSeeder {
                 periodId
         );
     }
+
+    /**
+     * Test-setup commercial lifecycle change (not recovery repair of canonical tables).
+     */
+    public void forceStatus(UUID periodId, String status) {
+        Instant now = Instant.parse("2026-09-03T00:00:00Z");
+        Instant closingAt = Instant.parse("2026-09-01T00:00:00Z");
+        Instant reconcilingAt = Instant.parse("2026-09-02T00:00:00Z");
+        switch (status) {
+            case "RECONCILING" -> jdbc.update(
+                    """
+                    UPDATE commercial_period
+                    SET status = ?, closing_started_at = COALESCE(closing_started_at, ?),
+                        reconciling_started_at = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    status,
+                    Timestamp.from(closingAt),
+                    Timestamp.from(reconcilingAt),
+                    Timestamp.from(now),
+                    periodId
+            );
+            case "FINALIZED" -> jdbc.update(
+                    """
+                    UPDATE commercial_period
+                    SET status = ?, closing_started_at = COALESCE(closing_started_at, ?),
+                        reconciling_started_at = COALESCE(reconciling_started_at, ?),
+                        finalized_at = ?, finalized_by = 'test-finalizer', updated_at = ?
+                    WHERE id = ?
+                    """,
+                    status,
+                    Timestamp.from(closingAt),
+                    Timestamp.from(reconcilingAt),
+                    Timestamp.from(now),
+                    Timestamp.from(now),
+                    periodId
+            );
+            default -> throw new IllegalArgumentException("Unsupported forced status: " + status);
+        }
+    }
 }
