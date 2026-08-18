@@ -140,7 +140,7 @@ Milestones are sequential. Each builds only the workloads it needs.
 - Optimizations only with before/after evidence; no speculative indexes required
 - [ADR-020](adr/ADR-020-performance-engineering-and-benchmark-methodology.md), [performance lab](performance/README.md)
 
-## Phase 12 — Kubernetes packaging and operability (current)
+## Phase 12 — Kubernetes packaging and operability
 
 - Multi-stage container images (Java 21, non-root) for all three workloads
 - kind cluster + Helm chart (`infrastructure/kubernetes/`)
@@ -150,17 +150,31 @@ Milestones are sequential. Each builds only the workloads it needs.
 - Live drills: Kafka/PostgreSQL outage, pending-outbox pod restart, scale, rollout
 - [ADR-021](adr/ADR-021-kubernetes-packaging-and-operability.md), [kubernetes docs](kubernetes/README.md)
 
+## Phase 13 — AWS architecture and Terraform (current)
+
+- Terraform for a single `dev` environment: VPC, EKS, RDS PostgreSQL 16, provisioned MSK, ECR (three images), IAM / EKS Pod Identity, Secrets Manager containers
+- Helm reuse via `values-aws.yaml` (no second chart; in-cluster Postgres/Kafka/Keycloak disabled)
+- Control Plane remains Flyway owner; no Terraform migrations or topic management
+- Cost-aware defaults: one NAT Gateway, single-AZ RDS, two MSK brokers
+- Evidence: Terraform fmt/validate (and plan if credentials exist). **Not** a live AWS apply
+- [ADR-022](adr/ADR-022-aws-deployment-architecture-and-terraform.md), [AWS docs](aws/README.md)
+
 ## Phase 7B — Tenancy hardening (optional RLS revisit)
 
 - Revisit PostgreSQL RLS with proven session handling ([ADR-006](adr/ADR-006-postgresql-rls.md))
 - Expand audit of commercial-state access as needed
 
-## Phase 12+ — Cloud and delivery
+## Phase 14 — CI/CD deployment automation (deferred)
 
-- AWS/Terraform (EKS, RDS, MSK) when operability needs cloud topology
-- CI/CD deployment automation
+- Image build/push to ECR, Terraform plan/apply gates, Helm release, secret synchronization
+- IaC / container / dependency scanning in CI
 - No “production-ready” claim without recorded evidence
+
+## Phase 15+ — Remaining delivery hardening (deferred)
+
+- Optional production topology upgrades (Multi-AZ RDS, NAT per AZ, interface VPC endpoints, ACM/DNS)
+- Live AWS failure drills and backup restoration evidence when spend is authorized
 
 ## Explicit deferrals
 
-AWS/Terraform/CI/CD beyond Phase 12 local K8s · Redis/Mongo/ES/GraphQL/mesh without measured need · Cognito until production IdP cutover · Schema Registry/Avro until demonstrated · AI/LLM · Frontend
+PostgreSQL RLS (Phase 7B) · CI/CD apply automation (Phase 14) · live AWS deployment unless explicitly approved · Redis/Mongo/ES/GraphQL/mesh without measured need · Cognito until production IdP cutover · Schema Registry/Avro until demonstrated · AI/LLM · Frontend

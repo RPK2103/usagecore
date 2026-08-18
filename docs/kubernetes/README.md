@@ -2,7 +2,7 @@
 
 Local **operability validation** for the three UsageCore workloads on a reproducible **kind** cluster.
 
-This is **not** production HA, cloud deployment, or disaster recovery. See [ADR-021](../adr/ADR-021-kubernetes-packaging-and-operability.md).
+This is **not** production HA, cloud deployment, or disaster recovery. See [ADR-021](../adr/ADR-021-kubernetes-packaging-and-operability.md). AWS target topology is Phase 13 Terraform: [AWS docs](../aws/README.md).
 
 ## What this proves
 

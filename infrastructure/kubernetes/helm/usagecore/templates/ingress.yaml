@@ -1,0 +1,112 @@
+{{- if .Values.ingress.enabled }}
+{{- $hosts := .Values.ingress.hosts }}
+{{- $tlsEnabled := not (empty .Values.ingress.certificateArn) }}
+{{- $listenPorts := "[{\"HTTP\":80}]" }}
+{{- if $tlsEnabled }}
+{{- $listenPorts = "[{\"HTTPS\":443}]" }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: usagecore-control-plane
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "usagecore.appLabels" (dict "name" "control-plane" "component" "ingress" "Values" .Values "Chart" .Chart "Release" .Release) | nindent 4 }}
+  annotations:
+    alb.ingress.kubernetes.io/scheme: {{ .Values.ingress.scheme | quote }}
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: {{ .Values.ingress.groupName | quote }}
+    alb.ingress.kubernetes.io/listen-ports: {{ $listenPorts | quote }}
+    alb.ingress.kubernetes.io/healthcheck-path: /actuator/health/readiness
+    alb.ingress.kubernetes.io/success-codes: "200"
+    {{- if .Values.ingress.albSecurityGroupId }}
+    alb.ingress.kubernetes.io/security-groups: {{ .Values.ingress.albSecurityGroupId | quote }}
+    {{- end }}
+    {{- if $tlsEnabled }}
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.certificateArn | quote }}
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ $hosts.controlPlane | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: usagecore-control-plane
+                port:
+                  number: {{ .Values.controlPlane.port }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: usagecore-entitlement-runtime
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "usagecore.appLabels" (dict "name" "entitlement-runtime" "component" "ingress" "Values" .Values "Chart" .Chart "Release" .Release) | nindent 4 }}
+  annotations:
+    alb.ingress.kubernetes.io/scheme: {{ .Values.ingress.scheme | quote }}
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: {{ .Values.ingress.groupName | quote }}
+    alb.ingress.kubernetes.io/listen-ports: {{ $listenPorts | quote }}
+    alb.ingress.kubernetes.io/healthcheck-path: /actuator/health/readiness
+    alb.ingress.kubernetes.io/success-codes: "200"
+    {{- if .Values.ingress.albSecurityGroupId }}
+    alb.ingress.kubernetes.io/security-groups: {{ .Values.ingress.albSecurityGroupId | quote }}
+    {{- end }}
+    {{- if $tlsEnabled }}
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.certificateArn | quote }}
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ $hosts.entitlementRuntime | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: usagecore-entitlement-runtime
+                port:
+                  number: {{ .Values.entitlementRuntime.port }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: usagecore-usage-pipeline
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "usagecore.appLabels" (dict "name" "usage-pipeline" "component" "ingress" "Values" .Values "Chart" .Chart "Release" .Release) | nindent 4 }}
+  annotations:
+    alb.ingress.kubernetes.io/scheme: {{ .Values.ingress.scheme | quote }}
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/group.name: {{ .Values.ingress.groupName | quote }}
+    alb.ingress.kubernetes.io/listen-ports: {{ $listenPorts | quote }}
+    alb.ingress.kubernetes.io/healthcheck-path: /actuator/health/readiness
+    alb.ingress.kubernetes.io/success-codes: "200"
+    {{- if .Values.ingress.albSecurityGroupId }}
+    alb.ingress.kubernetes.io/security-groups: {{ .Values.ingress.albSecurityGroupId | quote }}
+    {{- end }}
+    {{- if $tlsEnabled }}
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.certificateArn | quote }}
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: {{ $hosts.usagePipeline | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: usagecore-usage-pipeline
+                port:
+                  number: {{ .Values.usagePipeline.port }}
+{{- end }}

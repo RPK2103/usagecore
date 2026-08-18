@@ -117,3 +117,38 @@ Client (port-forward / local)
 - Not proven: EKS, managed RDS/MSK, multi-AZ, backup/restore, production secret management.
 
 See [kubernetes docs](../kubernetes/README.md) and [failure matrix](../kubernetes/failure-matrix.md).
+
+## AWS target architecture (Phase 13)
+
+The same three workloads map to managed AWS services. Domain authorities do not change.
+
+```
+Internet / client
+        │
+        ▼
+       ALB
+        │
+        ▼
+┌───────────────────────────────────────────────────┐
+│  Amazon EKS                                       │
+│  ┌─────────────────┐ ┌──────────────────────────┐ │
+│  │ control-plane   │ │ entitlement-runtime (×2) │ │
+│  │ (Flyway owner)  │ │ usage-pipeline (×2)      │ │
+│  └────────┬────────┘ └────────────┬─────────────┘ │
+│           │                       │               │
+│           └───────────┬───────────┘               │
+│                       ▼                           │
+│         Amazon RDS PostgreSQL (private)           │
+│                       │                           │
+│         usage-pipeline outbox ──► Amazon MSK      │
+└───────────────────────────────────────────────────┘
+        ECR · Secrets Manager · external OIDC issuer
+```
+
+| Environment | Role |
+| --- | --- |
+| Docker Compose | Developer dependency stack for host-run JVMs |
+| kind + Helm | Local Kubernetes operability evidence (Phase 12) |
+| AWS Terraform | Target cloud topology; **configuration validated**, not live-applied in this phase |
+
+See [ADR-022](../adr/ADR-022-aws-deployment-architecture-and-terraform.md) and [AWS docs](../aws/README.md).

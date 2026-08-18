@@ -1,0 +1,75 @@
+# AWS target overlay for the Phase 12 Helm chart.
+# Does not deploy in-cluster PostgreSQL, Kafka, or Keycloak.
+# Placeholders must be replaced from Terraform outputs / Secrets Manager at deploy time.
+# This file contains no real credentials.
+
+namespace: usagecore
+
+global:
+  imagePullPolicy: IfNotPresent
+
+images:
+  controlPlane:
+    repository: REPLACE_ACCOUNT.dkr.ecr.REPLACE_REGION.amazonaws.com/usagecore-control-plane
+    tag: REPLACE_WITH_GIT_SHA
+  entitlementRuntime:
+    repository: REPLACE_ACCOUNT.dkr.ecr.REPLACE_REGION.amazonaws.com/usagecore-entitlement-runtime
+    tag: REPLACE_WITH_GIT_SHA
+  usagePipeline:
+    repository: REPLACE_ACCOUNT.dkr.ecr.REPLACE_REGION.amazonaws.com/usagecore-usage-pipeline
+    tag: REPLACE_WITH_GIT_SHA
+
+postgres:
+  enabled: false
+  username: usagecore
+  password: ""
+
+kafka:
+  enabled: false
+
+keycloak:
+  enabled: false
+
+secrets:
+  create: false
+
+config:
+  # USAGECORE_DB_URL / USAGECORE_KAFKA_BOOTSTRAP_SERVERS / USAGECORE_JWK_SET_URI
+  dbHost: REPLACE_RDS_ENDPOINT
+  dbPort: "5432"
+  dbName: usagecore
+  kafkaBootstrapServers: REPLACE_MSK_BOOTSTRAP_BROKERS
+  jwkSetUri: REPLACE_EXTERNAL_OIDC_JWKS_URI
+  otlpEnabled: "false"
+
+controlPlane:
+  enabled: true
+  replicas: 1
+
+entitlementRuntime:
+  enabled: true
+  replicas: 2
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+usagePipeline:
+  enabled: true
+  replicas: 2
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+ingress:
+  enabled: true
+  className: alb
+  groupName: usagecore
+  scheme: internet-facing
+  # Empty = HTTP listener only. Set Terraform output acm_certificate_arn for HTTPS.
+  certificateArn: ""
+  albSecurityGroupId: REPLACE_ALB_SECURITY_GROUP_ID
+  # .invalid is a reserved documentation TLD, not a registered UsageCore domain.
+  hosts:
+    controlPlane: control-plane.example.invalid
+    entitlementRuntime: entitlement-runtime.example.invalid
+    usagePipeline: usage-pipeline.example.invalid

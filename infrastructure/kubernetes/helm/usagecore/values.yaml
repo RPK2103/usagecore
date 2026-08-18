@@ -1,4 +1,5 @@
-# Default chart values. Override with values-local.yaml for the local kind cluster.
+# Default chart values. Override with values-local.yaml for the local kind cluster
+# or values-aws.yaml for the AWS target architecture (EKS + RDS + MSK).
 namespace: usagecore
 
 global:
@@ -52,6 +53,23 @@ config:
   dbPort: "5432"
   dbName: usagecore
   otlpEnabled: "false"
+
+secrets:
+  # Local chart creates placeholder credentials. AWS overlay disables this;
+  # Phase 14/deployment automation syncs Secrets Manager into usagecore-secrets.
+  create: true
+
+ingress:
+  enabled: false
+  className: alb
+  groupName: usagecore
+  scheme: internet-facing
+  certificateArn: ""
+  albSecurityGroupId: ""
+  hosts:
+    controlPlane: ""
+    entitlementRuntime: ""
+    usagePipeline: ""
 
 controlPlane:
   enabled: true

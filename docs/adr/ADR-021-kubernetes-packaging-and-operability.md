@@ -55,7 +55,7 @@ Only Control Plane enables Flyway. Flyway advisory locks may serialize concurren
 - **ConfigMap**: non-secret env (`USAGECORE_DB_URL`, JWKS URI, Kafka bootstrap)
 - **Secret**: local placeholder DB/Keycloak credentials only
 
-Kubernetes Secret is **not** production secret management (Phase 13 AWS/Terraform).
+Kubernetes Secret is **not** production secret management (Phase 13 provisions AWS Secrets Manager; Kubernetes delivery is Phase 14).
 
 No Vault/External Secrets Operator.
 
@@ -103,7 +103,7 @@ External Compose Prometheus/Grafana acceptable; in-cluster observability optiona
 ## Consequences
 
 - Docker Compose remains the developer dependency stack; Kubernetes is operability validation.
-- Phase 13 can map the same chart values to EKS + RDS + MSK + IRSA.
+- Phase 13 maps the same chart to EKS + RDS + MSK via Terraform and `values-aws.yaml` (EKS Pod Identity, not IRSA).
 - Live failure drills produce evidence in `docs/kubernetes/failure-matrix.md`.
 - Application code changes limited to graceful shutdown configuration.
 

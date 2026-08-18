@@ -1,0 +1,46 @@
+# Copy to terraform.tfvars and replace placeholders before a real plan/apply.
+# terraform.tfvars is gitignored. Never put AWS keys or real passwords here.
+
+aws_region  = "us-east-1"
+environment = "dev"
+vpc_cidr    = "10.20.0.0/16"
+az_count    = 3
+
+# Cost-conscious default. per_az is the HA alternative.
+nat_gateway_strategy = "single"
+
+eks_cluster_name     = "usagecore-dev"
+# Re-check https://docs.aws.amazon.com/eks/latest/userguide/kubernetes-versions.html before apply.
+kubernetes_version   = "1.34"
+
+# RFC 5737 TEST-NET-3 placeholder. Replace with your real admin CIDR, for example 203.0.113.10/32.
+eks_public_access_cidrs = ["203.0.113.0/24"]
+eks_allow_public_endpoint_from_anywhere = false
+
+# Dev/example sizing — not production and not derived from Phase 11 laptop numbers.
+node_instance_types = ["t3.large"]
+node_desired_size   = 2
+node_min_size       = 2
+node_max_size       = 3
+node_disk_size      = 20
+
+rds_engine_version          = "16"
+rds_instance_class          = "db.t4g.medium"
+rds_allocated_storage       = 20
+rds_multi_az                = false
+rds_backup_retention_period = 7
+rds_deletion_protection     = false
+rds_skip_final_snapshot     = true
+
+msk_kafka_version         = "3.8.x"
+msk_broker_instance_type  = "kafka.t3.small"
+msk_broker_count          = 2
+msk_broker_volume_size    = 20
+# Remain false until the AmazonMSK_ secret value exists in Secrets Manager.
+msk_associate_scram_secret = false
+
+# Optional ACM certificate. Leave empty for HTTP-only ALB experiments.
+acm_certificate_arn = ""
+
+# Immutable image reference for Helm. Do not use latest.
+image_tag = "REPLACE_WITH_GIT_SHA"

@@ -50,6 +50,21 @@ See [ADR-020](docs/adr/ADR-020-performance-engineering-and-benchmark-methodology
 
 See [ADR-021](docs/adr/ADR-021-kubernetes-packaging-and-operability.md) and [docs/kubernetes/](docs/kubernetes/README.md).
 
+## Phase 13 status
+
+**Phase 13** maps the same three workloads to a **minimal AWS topology expressed as Terraform** (VPC, EKS, RDS PostgreSQL, MSK, ECR, IAM, Secrets Manager). This is infrastructure design + configuration validation. It is **not** a live AWS deployment, production HA, or disaster recovery.
+
+```powershell
+cd infrastructure/terraform/environments/dev
+terraform init -backend=false
+terraform fmt -check
+terraform validate
+```
+
+`terraform plan` needs AWS credentials. `terraform apply` creates chargeable resources and must not be run without explicit approval.
+
+See [ADR-022](docs/adr/ADR-022-aws-deployment-architecture-and-terraform.md) and [docs/aws/](docs/aws/README.md).
+
 ## Phase 10 status
 
 Phase 9B (Grafana + Prometheus alerts + runbooks) is complete. **Phase 10** proves selected failure windows: Kafka publication outage/recovery, outbox ACK-before-PUBLISHED duplicates, consumer commit/offset gap, PostgreSQL unavailability, poison/DLQ isolation, and delayed delivery across CommercialPeriod finalization.
@@ -254,7 +269,7 @@ Gatling load tests are **not** part of `clean verify`. Explicit lab commands: [d
 - Compensating/undo UsageAdjustment, automatic exception application, quota repair, Kafka historical replay
 - Automated commercial-period schedulers / tenant-specific timezones
 - Kafka Streams / Schema Registry / Avro
-- Cognito / AWS production deployment
+- Cognito / live AWS production cutover
 - Redis, MongoDB, Elasticsearch, GraphQL, service mesh
 - AI / LLM components
 - Frontend UI

@@ -90,6 +90,10 @@ helm rollback usagecore
 
 Application rollback ≠ database schema rollback (Flyway is forward-only).
 
+## AWS overlay (Phase 13)
+
+Reuse this chart with [`values-aws.yaml`](../../infrastructure/kubernetes/helm/usagecore/values-aws.yaml): in-cluster Postgres/Kafka/Keycloak off, Ingress for ALB, `secrets.create: false`. Substitute Terraform outputs at deploy time. Terraform does not render Deployments.
+
 ## Observability
 
 Pods expose `/actuator/prometheus`. Phase 12 uses **external** Compose Prometheus/Grafana optionally via port-forward; in-cluster Prometheus was not required for validation scope.
