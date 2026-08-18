@@ -1,5 +1,5 @@
-# Default chart values. Override with values-local.yaml for the local kind cluster
-# or values-aws.yaml for the AWS target architecture (EKS + RDS + MSK).
+# Default chart values = local kind cluster (in-cluster PostgreSQL, Kafka, Keycloak).
+# AWS overlay: values-aws.yaml (EKS + RDS + MSK; in-cluster deps disabled).
 namespace: usagecore
 
 global:

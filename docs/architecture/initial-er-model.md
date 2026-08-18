@@ -1,5 +1,7 @@
 # Initial ER model (logical)
 
+Historical Phase 1 logical model. It is **not** the current physical schema. Current table responsibilities: [source-of-truth.md](source-of-truth.md). Flyway: [`libraries/database-migrations`](../../libraries/database-migrations/README.md).
+
 Logical model for Phase 1. Not a physical schema — no DDL in Phase 0.
 
 ## Entities and keys

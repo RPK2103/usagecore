@@ -8,7 +8,7 @@ import java.time.Instant;
 
 /**
  * Usage ingestion request. tenantId is intentionally absent — unknown fields are rejected.
- * MeterDefinition validation is deferred to Phase 6; this is syntactic/domain-shape only.
+ * Meter existence/status is enforced in the application service, not by this DTO.
  */
 public record SubmitUsageEventRequest(
         @NotBlank String productKey,

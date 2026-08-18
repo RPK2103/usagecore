@@ -6,7 +6,7 @@ Phase 14 delivery system for UsageCore. GitHub Actions is the only CI/CD platfor
 CONFIGURATION VALIDATED ONLY
 ```
 
-unless a workflow actually ran on GitHub. This repository implements the pipelines; live GitHub/AWS execution is documented per check.
+unless a workflow actually ran on GitHub. This repository implements the pipelines; live GitHub/AWS execution is documented per check. Phase 15 recorded the first hosted runs on commit `24975ee` (mixed results — see [evidence.md](evidence.md)) and does not add status badges.
 
 ## Documents
 

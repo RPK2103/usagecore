@@ -1,6 +1,28 @@
 # System overview
 
-UsageCore is a multi-tenant entitlement and usage platform. PostgreSQL is the transactional source of truth. Delivery semantics are at-least-once; end-to-end exactly-once is not claimed.
+UsageCore is a multi-tenant B2B SaaS infrastructure platform for commercial entitlements, usage metering, strict quota enforcement, contract-version history, commercial period finalization, reconciliation, and failure-safe event processing.
+
+PostgreSQL is the transactional source of truth. Delivery semantics are at-least-once; end-to-end exactly-once is not claimed.
+
+Diagrams: [diagrams.md](diagrams.md). Authority table: [source-of-truth.md](source-of-truth.md). Environments: [deployment-matrix.md](deployment-matrix.md).
+
+```mermaid
+flowchart TB
+  Client[Client]
+  CP[Control Plane]
+  ER[Entitlement Runtime]
+  UP[Usage Pipeline]
+  PG[(PostgreSQL source of truth)]
+  KF[Kafka transport]
+  Client --> CP
+  Client --> ER
+  Client --> UP
+  CP --> PG
+  ER --> PG
+  UP --> PG
+  UP --> KF
+  KF --> UP
+```
 
 ## Logical workloads
 
@@ -12,10 +34,12 @@ UsageCore is a multi-tenant entitlement and usage platform. PostgreSQL is the tr
 
 Build only workloads required by the active milestone. No frontend in this repo.
 
-Shared modules:
+Shared modules (not services):
 
 - Flyway SQL: [`libraries/database-migrations`](../../libraries/database-migrations/README.md)
-- Kafka transport contracts: `libraries/event-contracts` (envelopes only — not a business-domain mega-library)
+- Kafka transport contracts: [`libraries/event-contracts`](../../libraries/event-contracts/README.md) (envelopes only — not a business-domain mega-library)
+
+Also not services: `performance/` (measurement lab) and `infrastructure/terraform/` (infrastructure code).
 
 ## Boundaries
 
@@ -49,6 +73,29 @@ Usage ingestion never accepts `tenantId` from the request body; tenant comes onl
 - **Contracts / ContractVersions** are the commercial truth for a tenant–product relationship.
 - Activated `ContractVersion` state (and entitlement snapshots) is immutable ([ADR-003](../adr/ADR-003-contract-historical-state.md)).
 - Effective time uses half-open intervals `[effectiveFrom, effectiveUntil)` in UTC-compatible timestamps ([ADR-005](../adr/ADR-005-temporal-model.md)).
+
+## Source of truth (compact)
+
+| Concern | Authority |
+| --- | --- |
+| Commercial configuration | Activated `ContractVersion` / `entitlement` |
+| Canonical usage | `usage_ledger` |
+| Ingest durability | `usage_ingestion` + `outbox_event` |
+| Dedup | `processed_event` |
+| Reporting | `usage_aggregate` / `usage_window_aggregate` |
+| Strict quota | `quota_state` / `quota_consumption` |
+| Lifecycle | `commercial_period` |
+| Delayed/finalized exceptions | `commercial_usage_exception` |
+| Reconciliation | `reconciliation_run` / `reconciliation_item` |
+| Corrections | `usage_adjustment` |
+
+## Flagship HTTP semantics
+
+| API | Semantics |
+| --- | --- |
+| `POST /api/v1/entitlements/check` | Read-only commercial decision. Does not consume quota. |
+| `POST /api/v1/usage/events` | HTTP 202 = durable PostgreSQL acceptance. Not Kafka/consumer/quota completion. |
+| `POST /api/v1/usage/consume` | Synchronous strict quota admission. PostgreSQL is concurrency authority. |
 
 ## Usage pipeline (Phase 8B)
 
@@ -149,7 +196,7 @@ Internet / client
 | --- | --- |
 | Docker Compose | Developer dependency stack for host-run JVMs |
 | kind + Helm | Local Kubernetes operability evidence (Phase 12) |
-| AWS Terraform | Target cloud topology; **configuration validated**, not live-applied in this phase |
+| AWS Terraform | Target cloud topology; **configuration validated**, not live-applied unless explicitly authorized |
 | GitHub Actions | PR gates, image identity, OIDC-gated deploy; **configuration**, not live GitHub/AWS execution unless recorded |
 
 See [ADR-022](../adr/ADR-022-aws-deployment-architecture-and-terraform.md) and [AWS docs](../aws/README.md).

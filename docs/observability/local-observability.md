@@ -32,13 +32,14 @@ Prometheus `up` is scrape reachability. Actuator health is dependency health. Bu
 
 ## Run applications with JSON logs + OTLP export
 
-```bash
-# Windows
+```powershell
 $env:SPRING_PROFILES_ACTIVE="local"
-.\mvnw.cmd -pl applications/control-plane -am spring-boot:run
-.\mvnw.cmd -pl applications/entitlement-runtime -am spring-boot:run
-.\mvnw.cmd -pl applications/usage-pipeline -am spring-boot:run
+java -jar applications/control-plane/target/control-plane-0.1.0-SNAPSHOT.jar
+java -jar applications/entitlement-runtime/target/entitlement-runtime-0.1.0-SNAPSHOT.jar
+java -jar applications/usage-pipeline/target/usage-pipeline-0.1.0-SNAPSHOT.jar
 ```
+
+Build JARs first as in the repository [README](../../README.md) quickstart. Do not use `.\mvnw.cmd -pl applications/<app> -am spring-boot:run` from the repo root.
 
 `local` profile:
 

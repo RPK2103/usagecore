@@ -159,12 +159,7 @@ Milestones are sequential. Each builds only the workloads it needs.
 - Evidence: Terraform fmt/validate (and plan if credentials exist). **Not** a live AWS apply
 - [ADR-022](adr/ADR-022-aws-deployment-architecture-and-terraform.md), [AWS docs](aws/README.md)
 
-## Phase 7B — Tenancy hardening (optional RLS revisit)
-
-- Revisit PostgreSQL RLS with proven session handling ([ADR-006](adr/ADR-006-postgresql-rls.md))
-- Expand audit of commercial-state access as needed
-
-## Phase 14 — CI/CD, supply-chain security, and gated delivery (current)
+## Phase 14 — CI/CD, supply-chain security, and gated delivery
 
 - GitHub Actions: PR Maven verify, Terraform fmt/validate, Helm/Compose checks
 - Security: CodeQL, dependency review, Trivy IaC/images; Dependabot weekly (no auto-merge)
@@ -172,14 +167,24 @@ Milestones are sequential. Each builds only the workloads it needs.
 - Terraform plan ≠ apply; apply and Helm behind `workflow_dispatch` + environment `dev`
 - AWS Kafka SASL_SSL/SCRAM configuration for Usage Pipeline; local PLAINTEXT preserved
 - Secrets Manager → Kubernetes Secret at deploy time; ALB controller install as platform step
-- Evidence: local static validation. **Not** a live AWS apply, ECR push, or GitHub-hosted run unless recorded
+- Evidence: local static validation plus first GitHub-hosted runs on `24975ee` (mixed; see [CI/CD evidence](cicd/evidence.md)). **Not** a live AWS apply or ECR push
 - [ADR-023](adr/ADR-023-github-actions-ci-cd-and-supply-chain-security.md), [CI/CD docs](cicd/README.md)
 
-## Phase 15 — Portfolio hardening / final repository audit (deferred)
+## Phase 15 — Portfolio hardening (current)
 
-- Presentation, documentation consistency, optional production topology upgrades
-- Live AWS failure drills and backup restoration evidence when spend is authorized
+- Documentation consistency, evidence indexing, demo reproducibility, evaluator navigation
+- No new runtime service, API family, or cost-bearing AWS apply
+- [Docs index](README.md), [reviewer guide](portfolio/reviewer-guide.md), [engineering evidence](evidence/engineering-evidence.md)
+
+## Completed major phases (checklist)
+
+0 Engineering charter · 1 Control Plane · 2 Security / multi-tenancy · 3 Entitlement Runtime · 4 Kafka usage ingestion · 5A Durable ingestion / outbox · 5B Consumer inbox / ledger · 6A Metering / lifetime aggregation · 6B Event-time windows · 6C Strict quota enforcement · 7 Commercial period lifecycle · 8A Reconciliation · 8B Usage adjustments · 9A Observability · 9B Dashboards / alerts / runbooks · 10 Resilience · 11 Performance · 12 Kubernetes · 13 AWS/Terraform · 14 CI/CD · 15 Portfolio hardening
+
+## Phase 7B — Tenancy hardening (deferred)
+
+- Revisit PostgreSQL RLS with proven session handling ([ADR-006](adr/ADR-006-postgresql-rls.md))
+- **Not implemented.** Application JWT tenancy remains the v1 control. Do not infer RLS from Phase 15 docs.
 
 ## Explicit deferrals
 
-PostgreSQL RLS (Phase 7B) · live AWS deployment unless explicitly approved · Redis/Mongo/ES/GraphQL/mesh without measured need · Cognito until production IdP cutover · Schema Registry/Avro until demonstrated · AI/LLM · Frontend
+PostgreSQL RLS (Phase 7B) · live AWS deployment unless explicitly approved · live GitHub/AWS pipeline execution unless recorded · Redis/Mongo/ES/GraphQL/mesh without measured need · Cognito until an explicit IdP cutover · Schema Registry/Avro until demonstrated · AI/LLM · Frontend · destructive DB DR · DLQ destination outage drill · autoscaling proof

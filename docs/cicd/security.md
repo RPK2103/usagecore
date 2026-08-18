@@ -57,6 +57,10 @@ OWASP Dependency-Check is not used (NVD token/false-positive cost). No silent su
 
 Do not claim zero vulnerabilities.
 
+Accepted IaC findings (example topology, not silent): see repository `.trivyignore`. Identifiers: AVD-AWS-0132, AVD-AWS-0039, AVD-AWS-0040, AVD-AWS-0041, AVD-AWS-0104, AVD-AWS-0164. Each line in that file names reason and documentation pointer. MSK at-rest encryption is declared in Terraform (`alias/aws/kafka`) rather than ignored.
+
+GitHub-hosted execution of these scanners is recorded in [evidence.md](evidence.md). A failed run is evidence too — do not imply the Security workflow is green unless it is.
+
 ## SBOM and attestation
 
 CycloneDX SBOMs are workflow artifacts (not committed). GitHub build provenance attestations are generated for published images when the publish job runs. This is not a SLSA Level 3 claim.

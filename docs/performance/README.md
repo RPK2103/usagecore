@@ -26,7 +26,8 @@ HTTP acceptance (B) and asynchronous drain (outbox → Kafka → consumer → le
 | --- | --- |
 | [`performance/`](../../performance/) | Gatling module, seed/verify/EXPLAIN tools, scripts |
 | [`methodology.md`](methodology.md) | Profiles, auth, coordinated omission, how to override knobs |
-| [`baseline-results.md`](baseline-results.md) | Recorded local runs (fill after execution) |
+| [`summary.md`](summary.md) | Portfolio-friendly measured results + limitations |
+| [`baseline-results.md`](baseline-results.md) | Recorded local runs with environment context |
 | [`profiling-guide.md`](profiling-guide.md) | JFR / jcmd / Micrometer |
 | [`database-analysis.md`](database-analysis.md) | EXPLAIN ANALYZE summaries |
 | [ADR-020](../adr/ADR-020-performance-engineering-and-benchmark-methodology.md) | Why this lab is shaped this way |

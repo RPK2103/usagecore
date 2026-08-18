@@ -69,6 +69,11 @@ out/
 # Kubernetes / local cluster artifacts
 kind-export/
 *.kubeconfig.local
+kubeconfig
+kubeconfig.*
+
+# Token dumps (never commit live JWTs)
+*.jwt
 
 # CI / local scanner outputs
 *.tfplan

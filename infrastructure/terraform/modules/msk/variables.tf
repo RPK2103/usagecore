@@ -41,6 +41,12 @@ variable "broker_volume_size" {
   default     = 20
 }
 
+variable "encryption_at_rest_kms_key_arn" {
+  type        = string
+  description = "KMS key for MSK at-rest encryption. Default is the AWS-managed kafka alias, not a customer CMK."
+  default     = "alias/aws/kafka"
+}
+
 variable "scram_secret_arns" {
   type        = list(string)
   description = "Secrets Manager ARNs to associate for SASL/SCRAM. Empty until operators populate the secret value."

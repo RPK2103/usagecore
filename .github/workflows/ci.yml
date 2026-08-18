@@ -30,7 +30,9 @@ jobs:
           cache: maven
 
       - name: Maven clean verify
-        run: ./mvnw --batch-mode --no-transfer-progress clean verify
+        run: |
+          chmod +x mvnw
+          ./mvnw --batch-mode --no-transfer-progress clean verify
 
       - name: Upload Surefire reports on failure
         if: failure()

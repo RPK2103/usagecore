@@ -16,6 +16,8 @@ resource "aws_msk_cluster" "this" {
   }
 
   encryption_info {
+    # AWS-managed MSK CMK (alias/aws/kafka). A customer CMK is a production cost/ops upgrade.
+    encryption_at_rest_kms_key_arn = var.encryption_at_rest_kms_key_arn
     encryption_in_transit {
       client_broker = "TLS"
       in_cluster    = true

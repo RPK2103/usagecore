@@ -1,292 +1,155 @@
 # UsageCore
 
-Multi-tenant B2B SaaS platform for entitlement, contract versioning, usage metering, and reconciliation.
+A multi-tenant B2B SaaS **infrastructure** platform for commercial entitlements, usage metering, strict quota enforcement, contract-version history, commercial period finalization, reconciliation, and failure-safe event processing.
 
-Java backend portfolio project. No frontend in this repository.
+Java backend / distributed-systems portfolio. No frontend. Not a billing platform, not exactly-once, not a live AWS deployment, not production-ready by adjective.
 
-## Stack (approved)
+**Five-minute tour:** [docs/portfolio/reviewer-guide.md](docs/portfolio/reviewer-guide.md)
+**Docs index:** [docs/README.md](docs/README.md)
 
-| Concern | Choice |
-| --- | --- |
-| Language / runtime | Java 21 |
-| Framework | Spring Boot 3 |
-| Build | Maven |
-| Transactional store | PostgreSQL |
-| Async usage transport | Kafka (JSON envelopes; at-least-once) |
-| Architecture | Pragmatic hexagonal / clean |
-| Auth (local) | Keycloak (OIDC) — **development only** |
-| Auth (production target) | Cognito later (not configured in this phase) |
+## What it models
 
-## Workloads
+A product like **DataPilot Cloud** sells features (API access, scheduled exports) to tenants (**Acme**, **Globex**). Contracts version over time. Usage is metered asynchronously. Some actions require **strict quota** that must not over-admit under concurrency. Commercial periods finalize. Delayed events must not silently rewrite history. Failures duplicate **transport**, not **business effects**.
 
-| Workload | Module | Default port |
+## Why it is technically interesting
+
+- Explicit **source-of-truth** split: ledger vs aggregates vs quota vs outbox/inbox ([table](docs/architecture/source-of-truth.md)).
+- **Transactional outbox** + **consumer inbox** instead of unsafe dual writes or “exactly-once” claims.
+- **PostgreSQL** as quota concurrency authority across replicas — not a JVM lock.
+- **Commercial finalization** that preserves delayed ledger evidence and quarantines instead of mutating finalized aggregates.
+- **Reconciliation reports**; **adjustments** are explicit and immutable.
+- Evidence is labeled: tests, kind drills, local Gatling, Terraform validate, workflow configuration.
+
+## Architecture
+
+Exactly three deployable workloads:
+
+| Workload | Responsibility | Port |
 | --- | --- | --- |
-| control-plane | `applications/control-plane` | `8080` |
-| entitlement-runtime | `applications/entitlement-runtime` | `8082` |
-| usage-pipeline | `applications/usage-pipeline` | `8083` |
+| **Control Plane** | Catalogue, contracts, commercial periods; production Flyway owner | `8080` |
+| **Entitlement Runtime** | Authenticated **read-only** entitlement checks against activated snapshots | `8082` |
+| **Usage Pipeline** | Durable ingest, outbox, Kafka consume, ledger/aggregates, strict consume, reconciliation, adjustments | `8083` |
 
-Shared libraries:
+Not services:
 
-- [`libraries/database-migrations`](libraries/database-migrations/README.md) — Flyway SQL (Control Plane owns production migrations)
-- [`libraries/event-contracts`](libraries/event-contracts) — versioned Kafka transport envelopes only
-
-## Phase 11 status
-
-Phase 10 (resilience failure-recovery) is complete. **Phase 11** adds a **local performance laboratory** (Gatling in `performance/`, seed/verify/EXPLAIN/JFR docs). Results are machine-specific and are **not** production capacity, production SLOs, or hardware-independent TPS claims.
-
-See [ADR-020](docs/adr/ADR-020-performance-engineering-and-benchmark-methodology.md) and [docs/performance/](docs/performance/README.md).
-
-## Phase 12 status
-
-**Phase 12** packages the three workloads for **local Kubernetes (kind + Helm)**: container images, probes, ConfigMap/Secret config, multi-replica usage-pipeline validation, and operability failure drills. This is **not** AWS/EKS, production HA, or disaster recovery.
-
-```powershell
-.\infrastructure\kubernetes\scripts\create-cluster.ps1
-.\infrastructure\kubernetes\scripts\build-images.ps1 -Tag phase12
-.\infrastructure\kubernetes\scripts\load-images.ps1 -Tag phase12
-.\infrastructure\kubernetes\scripts\deploy.ps1 -Tag phase12
-.\infrastructure\kubernetes\scripts\smoke.ps1
-```
-
-See [ADR-021](docs/adr/ADR-021-kubernetes-packaging-and-operability.md) and [docs/kubernetes/](docs/kubernetes/README.md).
-
-## Phase 13 status
-
-**Phase 13** maps the same three workloads to a **minimal AWS topology expressed as Terraform** (VPC, EKS, RDS PostgreSQL, MSK, ECR, IAM, Secrets Manager). This is infrastructure design + configuration validation. It is **not** a live AWS deployment, production HA, or disaster recovery.
-
-```powershell
-cd infrastructure/terraform/environments/dev
-terraform init -backend=false
-terraform fmt -check
-terraform validate
-```
-
-`terraform plan` needs AWS credentials. `terraform apply` creates chargeable resources and must not be run without explicit approval.
-
-See [ADR-022](docs/adr/ADR-022-aws-deployment-architecture-and-terraform.md) and [docs/aws/](docs/aws/README.md).
-
-## Phase 14 status
-
-**Phase 14** adds GitHub Actions CI/CD: PR verification, supply-chain scanning, SHA-tagged images, GitHub OIDC to AWS (no long-lived access keys), Terraform plan separated from apply, and a gated `dev` Helm deploy. This is **not** a live AWS deployment and **not** a claim that GitHub-hosted workflows have already run.
-
-```text
-Pull request → CI + security + image build
-main → immutable images → optional ECR
-workflow_dispatch + environment `dev` → optional terraform apply / Helm / smoke
-```
-
-See [ADR-023](docs/adr/ADR-023-github-actions-ci-cd-and-supply-chain-security.md) and [docs/cicd/](docs/cicd/README.md).
-
-## Phase 10 status
-
-Phase 9B (Grafana + Prometheus alerts + runbooks) is complete. **Phase 10** proves selected failure windows: Kafka publication outage/recovery, outbox ACK-before-PUBLISHED duplicates, consumer commit/offset gap, PostgreSQL unavailability, poison/DLQ isolation, and delayed delivery across CommercialPeriod finalization.
-
-UsageCore is designed for **at-least-once** delivery and duplicate-safe recovery across those windows. It does **not** claim exactly-once transport, zero data loss, automatic disaster recovery, or production HA.
-
-See [ADR-019](docs/adr/ADR-019-resilience-and-failure-recovery.md) and the [failure matrix](docs/resilience/failure-matrix.md).
-
-## Phase 9B observability (retained)
-
-Phase 8B (explicit UsageAdjustment) and **Phase 9A** (metrics/traces/logs) are complete. **Phase 9B** adds a local Grafana + Prometheus alerting loop (observe → visualize → detect → investigate). Dashboards are not commercial correctness authority. Alert thresholds are demo/engineering defaults, not production SLOs. There is no automatic remediation.
-
-Three independently deployable applications:
-
-| Application | Responsibility |
+| Path | What it is |
 | --- | --- |
-| Control Plane | Catalog / commercial configuration (including MeterDefinition → Feature) + **CommercialPeriod** lifecycle; production Flyway owner; blocks FINALIZED while reconciliation is RUNNING |
-| Entitlement Runtime | Authenticated **read-only** entitlement checks against activated snapshots ([ADR-007](docs/adr/ADR-007-entitlement-runtime-read-architecture.md)) |
-| Usage Pipeline | Durable ingestion + outbox + idempotent consumer ledger/aggregates + synchronous quota consume + commercial-period enforcement + reconciliation rebuild/compare/report + explicit UsageAdjustment + observability + Phase 10 failure-recovery evidence ([ADR-008](docs/adr/ADR-008-kafka-usage-topology.md)–[ADR-019](docs/adr/ADR-019-resilience-and-failure-recovery.md)) |
+| `performance/` | Engineering lab (Gatling), not a runtime |
+| `infrastructure/terraform/` | Infrastructure **code**, not a running cloud |
+| `libraries/*` | Flyway SQL and Kafka envelopes — not deployables |
 
-Usage Pipeline Phase 8B:
+Canonical diagram: [docs/architecture/diagrams.md](docs/architecture/diagrams.md). PostgreSQL is correctness authority. Kafka is at-least-once transport.
 
-- `APPLY_QUARANTINED_USAGE` only — contribution derived from `usage_ledger` + meter semantics (no caller-supplied quantity/totals)
-- Allowed on `RECONCILING` / `FINALIZED` against a **COMPLETED** reconciliation run
-- Immutable `usage_adjustment` evidence; `usage_ledger` and `commercial_usage_exception` are not rewritten
-- Atomic PostgreSQL update of lifetime + window aggregates; `quota_state` is not mutated
-- New reconciliation run verifies the result; old runs stay immutable
-- **No** automatic repair, Kafka historical replay, or unfinalize
+## Core guarantees (actually designed and tested)
 
-HTTP 202 on `/events` means durably accepted for asynchronous processing — not that quotas/billing changed.
+1. Tenant identity from JWT only — never body/header authority.
+2. Activated `ContractVersion` is immutable historical evidence; plans are templates.
+3. `POST /usage/events` HTTP **202** = PostgreSQL accepted ingest+outbox — not consumer/Kafka/quota completion.
+4. Duplicate Kafka delivery does not double-apply (`processed_event`).
+5. Strict consume: limit 100, consumed 90, 20 concurrent × 1 → **10 accepted**, final **100**.
+6. Delayed usage after FINALIZED can ledger + exception without rewriting aggregates.
+7. Reconciliation does not auto-repair; adjustments are explicit.
+8. Usage Pipeline readiness depends on PostgreSQL, not Kafka.
 
-## Prerequisites
+Details and caveats: [docs/evidence/engineering-evidence.md](docs/evidence/engineering-evidence.md).
 
-- Java 21 JDK
-- Docker (for local PostgreSQL, Keycloak, Kafka, Prometheus, Grafana, OTel Collector, and Testcontainers)
-- Maven Wrapper (included; no system Maven required)
+## Flagship APIs (do not blur)
 
-## Local PostgreSQL + Keycloak + Kafka + observability scrapers
+| API | Meaning |
+| --- | --- |
+| `POST /api/v1/entitlements/check` | Read-only commercial decision. Does **not** consume quota. |
+| `POST /api/v1/usage/events` | Async metering. **202** = durable PostgreSQL acceptance. |
+| `POST /api/v1/usage/consume` | Synchronous strict quota admission. HTTP 200 with `ACCEPTED` or `REJECTED`. |
 
-Credentials in Compose are **local development only**, not for production.
+Examples: [docs/demo/api-examples.md](docs/demo/api-examples.md).
 
-```bash
+## Stack (what is actually in the repo)
+
+Java 21 · Spring Boot 3 · Maven · PostgreSQL · Flyway · Kafka (JSON) · Testcontainers · JUnit 5 · REST Assured · Mockito · ArchUnit · Micrometer · OpenTelemetry · Prometheus · Grafana · Gatling · JFR · Docker · Kubernetes (kind) · Helm · Terraform · AWS **architecture** · GitHub Actions · Keycloak (**local** IdP)
+
+Not used (intentionally): Redis, Kafka Streams, MongoDB, Elasticsearch, GraphQL, service mesh, AI/LLM.
+
+Local auth is Keycloak. Cloud target is an external OIDC issuer (Cognito is a possible later choice and is **not configured**).
+
+## How to run (one local path)
+
+Prerequisites: Java 21, Docker.
+
+```powershell
 docker compose -f infrastructure/docker/docker-compose.yml up -d
+
+.\mvnw.cmd -pl applications/control-plane,applications/entitlement-runtime,applications/usage-pipeline -am install -DskipTests
+
+java -jar applications/control-plane/target/control-plane-0.1.0-SNAPSHOT.jar
+java -jar applications/entitlement-runtime/target/entitlement-runtime-0.1.0-SNAPSHOT.jar
+java -jar applications/usage-pipeline/target/usage-pipeline-0.1.0-SNAPSHOT.jar
+
+.\performance\scripts\seed.ps1
 ```
 
-| Service | URL / port |
+Unix: `./mvnw` and the same `java -jar` / Compose commands.
+
+Do not use `.\mvnw.cmd -pl applications/<app> -am spring-boot:run` from the repo root (`-am` includes the parent POM, which has no main class).
+
+Compose ports: PostgreSQL `5432`, Keycloak `8081`, Kafka `9092`, Prometheus `9090`, Grafana `3000` (local `admin`/`admin`), OTel `4318`. Compose credentials are **local development only**.
+
+Demo users (password = username unless noted): `acme-developer`, `platform-admin`, `globex-developer`, … — [demo walkthrough](docs/demo/README.md). Acme JWT `tenant_id` is the placeholder `11111111-1111-1111-1111-111111111111`; the seeder uses that UUID on purpose.
+
+## How to demo
+
+Follow [docs/demo/README.md](docs/demo/README.md) (~10–15 minutes): token → entitlement check → usage 202 → SQL ledger → strict consume → point at existing resilience/performance/Kubernetes evidence.
+
+## What was tested
+
+`.\mvnw.cmd clean verify` — domain, REST, security, PostgreSQL/Kafka Testcontainers, concurrency, resilience seams, ArchUnit. Count is the Maven total after the run, not a slogan. Categories: [docs/evidence/test-strategy.md](docs/evidence/test-strategy.md).
+
+Gatling is **not** part of `clean verify`.
+
+## What was measured
+
+Local Gatling on a documented laptop (2026-08-18). Separate paths for check / 202 ingest / consume. **No production optimization was justified.** Summary: [docs/performance/summary.md](docs/performance/summary.md). Not cloud capacity.
+
+## What was not proven
+
+| Area | Status |
 | --- | --- |
-| PostgreSQL | `localhost:5432` |
-| Keycloak | `http://localhost:8081` (admin / admin) |
-| Kafka (KRaft single broker) | `localhost:9092` |
-| Prometheus | `http://localhost:9090` (scrapes host apps via `host.docker.internal`) |
-| Grafana | `http://localhost:3000` (local/demo `admin` / `admin`; Prometheus datasource provisioned) |
-| OTel Collector | OTLP HTTP `localhost:4318` (debug exporter; no Tempo/trace UI) |
-| Realm | `usagecore` |
+| Kubernetes on **kind** | Live smoke + failure drills (Phase 12) |
+| AWS EKS/RDS/MSK | Terraform **configuration validated**; not live-applied |
+| GitHub Actions on GitHub | First `main` push of Phase 14: Terraform + Container succeeded; CI (mvnw mode) and Trivy IaC failed. See [docs/cicd/evidence.md](docs/cicd/evidence.md) |
+| PostgreSQL RLS | **Deferred** (Phase 7B) |
+| Disaster recovery / AZ failover / autoscaling | Deferred or unexecuted |
 
-Defaults when running apps:
+Full list: [docs/limitations.md](docs/limitations.md). Roadmap: [docs/roadmap.md](docs/roadmap.md).
 
-| Variable | Default |
-| --- | --- |
-| `USAGECORE_DB_URL` | `jdbc:postgresql://localhost:5432/usagecore` |
-| `USAGECORE_DB_USERNAME` | `usagecore` |
-| `USAGECORE_DB_PASSWORD` | `usagecore` |
-| `USAGECORE_JWK_SET_URI` | `http://localhost:8081/realms/usagecore/protocol/openid-connect/certs` |
-| `USAGECORE_KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` |
-| `USAGECORE_OTLP_ENABLED` | `false` (set `true` with `SPRING_PROFILES_ACTIVE=local`) |
-| `USAGECORE_OTLP_ENDPOINT` | `http://localhost:4318/v1/traces` |
+## Validation (local, no AWS spend)
 
-### Demo users (local/demo-only)
-
-Passwords match usernames unless noted. Tenant-bound users ship with **placeholder** `tenant_id` attributes:
-
-| User | Role | `tenant_id` claim |
-| --- | --- | --- |
-| `platform-admin` | PLATFORM_ADMIN | (none) |
-| `acme-contract-manager` | CONTRACT_MANAGER | `11111111-1111-1111-1111-111111111111` |
-| `globex-contract-manager` | CONTRACT_MANAGER | `22222222-2222-2222-2222-222222222222` |
-| `acme-tenant-admin` | TENANT_ADMIN | Acme placeholder |
-| `acme-auditor` | AUDITOR | Acme placeholder |
-| `acme-developer` | DEVELOPER | Acme placeholder |
-| `globex-developer` | DEVELOPER | Globex placeholder |
-| `globex-billing` | BILLING_OPERATOR | Globex placeholder |
-
-**Local-demo automation item:** placeholder Keycloak `tenant_id` values do not automatically match Tenant UUIDs created via Control Plane APIs. Do **not** weaken JWT tenant rules to paper over this. Align Keycloak attributes (or create tenants with those fixed UUIDs) before a live Keycloak→runtime demo.
-
-Automated tests mint JWTs and do not require a live Keycloak.
-
-### Local M2M client (demo only)
-
-| Client | Secret | Notes |
-| --- | --- | --- |
-| `usagecore-datapilot-m2m-demo` | `datapilot-m2m-demo-secret-local-only` | Client-credentials demo; hardcoded Acme placeholder `tenant_id`; **not production** |
-
-Obtain a user token (password grant, local only):
-
-```bash
-curl -s -X POST "http://localhost:8081/realms/usagecore/protocol/openid-connect/token" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "client_id=usagecore-control-plane" \
-  -d "username=acme-developer" \
-  -d "password=acme-developer" \
-  -d "grant_type=password"
-```
-
-## Run applications
-
-```bash
-# Windows — Control Plane (owns Flyway migrations)
-.\mvnw.cmd -pl applications/control-plane -am spring-boot:run
-
-# Windows — Entitlement Runtime (Flyway disabled; schema must already exist)
-.\mvnw.cmd -pl applications/entitlement-runtime -am spring-boot:run
-
-# Windows — Usage Pipeline (Kafka required)
-.\mvnw.cmd -pl applications/usage-pipeline -am spring-boot:run
-
-# Unix
-./mvnw -pl applications/control-plane -am spring-boot:run
-./mvnw -pl applications/entitlement-runtime -am spring-boot:run
-./mvnw -pl applications/usage-pipeline -am spring-boot:run
-```
-
-| App | Health | Prometheus |
-| --- | --- | --- |
-| Control Plane | `http://localhost:8080/actuator/health` | `http://localhost:8080/actuator/prometheus` |
-| Entitlement Runtime | `http://localhost:8082/actuator/health` | `http://localhost:8082/actuator/prometheus` |
-| Usage Pipeline | `http://localhost:8083/actuator/health` | `http://localhost:8083/actuator/prometheus` |
-
-Usage Pipeline readiness depends on PostgreSQL, not Kafka. Observability: [ADR-017](docs/adr/ADR-017-observability-architecture.md), [ADR-018](docs/adr/ADR-018-operational-dashboards-and-alerting.md), [metrics](docs/observability/metrics.md), [alerts](docs/observability/alerts.md), [local setup](docs/observability/local-observability.md), [runbooks](docs/observability/runbooks/). Failure recovery: [ADR-019](docs/adr/ADR-019-resilience-and-failure-recovery.md), [failure matrix](docs/resilience/failure-matrix.md). Performance lab: [ADR-020](docs/adr/ADR-020-performance-engineering-and-benchmark-methodology.md), [docs/performance](docs/performance/README.md).
-
-## Authenticated local demos (curl)
-
-### Control Plane
-
-Base URL: `http://localhost:8080/api/v1`
-
-```bash
-curl -s -X POST http://localhost:8080/api/v1/tenants \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"tenantKey":"acme","displayName":"Acme Corp"}'
-```
-
-### Entitlement Runtime
-
-Base URL: `http://localhost:8082/api/v1`
-
-Requires a **tenant-bound** JWT (`DEVELOPER`, `TENANT_ADMIN`, or `CONTRACT_MANAGER`). `tenantId` must **not** appear in the body.
-
-```bash
-curl -s -X POST http://localhost:8082/api/v1/entitlements/check \
-  -H "Authorization: Bearer $DEVELOPER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -H "X-Correlation-Id: demo-1" \
-  -d '{"productKey":"datapilot-cloud","featureKey":"scheduled_exports","requestedUnits":1}'
-```
-
-### Usage Pipeline
-
-Base URL: `http://localhost:8083/api/v1`
-
-Requires a **tenant-bound** `DEVELOPER` JWT (or M2M client with that role). `tenantId` must **not** appear in the body — tenant comes only from the JWT.
-
-```bash
-curl -s -X POST http://localhost:8083/api/v1/usage/events \
-  -H "Authorization: Bearer $DEVELOPER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -H "X-Correlation-Id: export-corr-1" \
-  -d '{
-    "productKey":"datapilot-cloud",
-    "meterKey":"scheduled_export",
-    "quantity":1,
-    "occurredAt":"2026-08-12T14:30:00Z",
-    "idempotencyKey":"export-job-174"
-  }'
-```
-
-Expected: HTTP **202** with `status=ACCEPTED` after durable PostgreSQL acceptance (ingestion + outbox). Kafka publication is asynchronous. This does **not** mean usage totals, quotas, or billing state changed.
-
-Optional correlation header (not authentication): `X-Correlation-Id`.
-
-## Validation
-
-```bash
-# Windows
+```powershell
 .\mvnw.cmd clean verify
-
-# Unix
-./mvnw clean verify
+docker compose -f infrastructure/docker/docker-compose.yml config --quiet
 ```
 
-Requires Docker available for Testcontainers PostgreSQL and Kafka tests.
+Helm / Terraform (no apply):
 
-```bash
-docker compose -f infrastructure/docker/docker-compose.yml config
+```powershell
+helm lint infrastructure/kubernetes/helm/usagecore
+helm template usagecore infrastructure/kubernetes/helm/usagecore --namespace usagecore | Out-Null
+helm template usagecore infrastructure/kubernetes/helm/usagecore --namespace usagecore -f infrastructure/kubernetes/helm/usagecore/values-aws.yaml | Out-Null
+
+terraform -chdir=infrastructure/terraform/environments/dev init -backend=false
+terraform fmt -check -recursive infrastructure/terraform
+terraform -chdir=infrastructure/terraform/environments/dev validate
 ```
 
-Gatling load tests are **not** part of `clean verify`. Explicit lab commands: [docs/performance](docs/performance/README.md).
+`terraform apply` is cost-bearing and requires explicit approval.
 
-## Non-goals (current)
+## Further reading
 
-- Pricing, invoices, credits, billing exports
-- Compensating/undo UsageAdjustment, automatic exception application, quota repair, Kafka historical replay
-- Automated commercial-period schedulers / tenant-specific timezones
-- Kafka Streams / Schema Registry / Avro
-- Cognito / live AWS production cutover
-- Redis, MongoDB, Elasticsearch, GraphQL, service mesh
-- AI / LLM components
-- Frontend UI
-- Production notification routing / PagerDuty / automatic incident remediation
-- Production-ready / exactly-once / production SLO / production HA claims
-- Claims that Phase 7 finalization proves reconciled aggregate correctness
-- Claims that Phase 10 proves disaster recovery or zero message loss under arbitrary infrastructure destruction
-- Claims that local Gatling numbers are production capacity or hardware-independent TPS
+| Topic | Link |
+| --- | --- |
+| Interview stories | [docs/portfolio/interview-guide.md](docs/portfolio/interview-guide.md) |
+| Evidence index | [docs/evidence/engineering-evidence.md](docs/evidence/engineering-evidence.md) |
+| ADRs | [docs/adr/README.md](docs/adr/README.md) |
+| Security | [docs/security/README.md](docs/security/README.md) |
+| Kubernetes | [docs/kubernetes/README.md](docs/kubernetes/README.md) |
+| AWS | [docs/aws/README.md](docs/aws/README.md) |
+| CI/CD | [docs/cicd/README.md](docs/cicd/README.md) |

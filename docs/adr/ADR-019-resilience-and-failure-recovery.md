@@ -127,15 +127,20 @@ Phase 9 signals remain authoritative for **operations**, not commercial correctn
 - Delayed delivery after finalization quarantines rather than rewriting finalized aggregates
 - Recovery does not require manual `UPDATE` of canonical/commercial tables
 
+### Subsequent evidence (later phases; Phase 10 text above is unchanged)
+
+- Phase 11: local Gatling laboratory — [docs/performance/](../performance/README.md)
+- Phase 12: kind pending-outbox **pod** replacement is **VERIFIED BY LIVE KUBERNETES FAILURE DRILL** — [kubernetes/failure-matrix.md](../kubernetes/failure-matrix.md)
+- Phase 13–14: AWS/CI remain configuration-level except where GitHub-hosted runs are recorded in [cicd/evidence.md](../cicd/evidence.md)
+
 ### What remains unproven / deferred
 
-- Live multi-process JVM restart drill (deferred to deployment phase)
+- Live multi-process JVM kill on a developer host (kind pod restart is Phase 12, not this ADR’s experiment)
 - Kafka cluster disaster recovery / multi-broker loss
 - PostgreSQL volume destruction / backup restore
 - DLQ destination outage (no second DLQ)
 - Automatic reconciliation lease/reaper for stale `RUNNING`
-- Multi-region failover, Kubernetes, AWS
-- Load/performance (Phase 11)
+- Multi-region / EKS / RDS / MSK failover
 - Production HA / zero data loss / exactly-once
 
 ## Alternatives considered

@@ -1,0 +1,21 @@
+# Accepted Trivy IaC findings for the documented example AWS topology.
+# Not silent suppressions: each ID has reason, scope, and review pointer.
+# Policy: docs/cicd/security.md. Topology rationale: docs/aws/security.md and docs/aws/cost-and-limitations.md.
+
+# AVD-AWS-0132 (HIGH): Terraform state bucket uses AWS-managed AES256, not a customer CMK. Phase 13 cost/ops choice.
+AVD-AWS-0132
+
+# AVD-AWS-0039 (HIGH): EKS etcd envelope encryption with a customer CMK is not enabled. Documented in docs/aws/security.md.
+AVD-AWS-0039
+
+# AVD-AWS-0040 (CRITICAL): EKS public API endpoint is a documented dev convenience (private endpoint is also on). Not a production-only cluster.
+AVD-AWS-0040
+
+# AVD-AWS-0041 (CRITICAL): public_access_cidrs default is RFC 5737 TEST-NET-3 (203.0.113.0/24), not 0.0.0.0/0.
+AVD-AWS-0041
+
+# AVD-AWS-0104 (CRITICAL): Node security-group egress 0.0.0.0/0 is required for NAT/ECR/AWS APIs. This is not Kubernetes NetworkPolicy.
+AVD-AWS-0104
+
+# AVD-AWS-0164 (HIGH): Public subnets map public IPs for NAT Gateway / ALB. Application and data subnets stay private.
+AVD-AWS-0164
