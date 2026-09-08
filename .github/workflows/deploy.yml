@@ -60,7 +60,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Configure AWS credentials (OIDC apply role)
-        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
         with:
           role-to-assume: ${{ vars.AWS_ROLE_TERRAFORM_APPLY }}
           aws-region: ${{ env.AWS_REGION }}
@@ -97,7 +97,7 @@ jobs:
         uses: Azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5.1.0
 
       - name: Configure AWS credentials (OIDC deploy role)
-        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
+        uses: aws-actions/configure-aws-credentials@cbe3b392738ccf3f987d68400dafcf4b0624a56c # v6.2.4
         with:
           role-to-assume: ${{ vars.AWS_ROLE_HELM_DEPLOY }}
           aws-region: ${{ env.AWS_REGION }}
